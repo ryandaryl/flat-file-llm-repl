@@ -1,36 +1,25 @@
-import code
-import codecs
-import sys
 import io
+from contextlib import redirect_stdout
+import traceback
 
-class CapturingConsole(code.InteractiveConsole):
-    def __init__(self, locals=None):
-        super().__init__(locals)
-        self.stdout = io.StringIO()
-        self.stderr = io.StringIO()
+def execute_and_print(code_to_run, context_global):
+    out_buffer = io.StringIO()
+    error_string = ""
+    try:
+        with redirect_stdout(out_buffer):
+            exec(compile(code_to_run, "myfile.py", "exec"), context_global)
+    except Exception as e:
+        error_string = traceback.format_exc()
+    print(f"Captured STDOUT: {out_buffer.getvalue()}")
+    print(f"Captured STDERR: {error_string}")
 
-    def runcode(self, code_obj):
-        old_stdout, old_stderr = sys.stdout, sys.stderr
-        sys.stdout, sys.stderr = self.stdout, self.stderr
-        try:
-            super().runcode(code_obj)
-        finally:
-            # Restore standard output
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
+code_to_run1 = """
+a = 1
+print("This is standard output")
+raise Exception("This is an error message")
+"""
+code_to_run2 = "print(a)"
 
-my_console = CapturingConsole()
-my_console.push("""
-try:
-    from plotly.graph_objs import Figure;
-    Figure.show = Figure.to_html
-except ImportError:
-    pass
-""")
-
-my_console.push("from plotly import express as px; import numpy as np; px.line(np.arange(10)).show();")
-
-# print("Captured Output:", my_console.stdout.getvalue().strip(), sep="\n")
-open("plot.html", "w").write(codecs.getdecoder("unicode_escape")(my_console.stdout.getvalue())[0])
-print("Captured Errors:", my_console.stderr.getvalue().strip(), sep="\n")
-
+context_global = {}
+for code_to_run in [code_to_run1, code_to_run2]:
+    execute_and_print(code_to_run, context_global)
