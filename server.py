@@ -1,4 +1,5 @@
 import code
+import codecs
 import sys
 import io
 
@@ -19,11 +20,17 @@ class CapturingConsole(code.InteractiveConsole):
             sys.stderr = old_stderr
 
 my_console = CapturingConsole()
-my_console.push("print('Hello from the interactive console!')")
-my_console.push("x = 5")
-my_console.push("print('The value of x is:', x)")
-my_console.push("1 / 0")
+my_console.push("""
+try:
+    from plotly.graph_objs import Figure;
+    Figure.show = Figure.to_html
+except ImportError:
+    pass
+""")
 
-print("Captured Output:", my_console.stdout.getvalue().strip(), sep="\n")
+my_console.push("from plotly import express as px; import numpy as np; px.line(np.arange(10)).show();")
+
+# print("Captured Output:", my_console.stdout.getvalue().strip(), sep="\n")
+open("plot.html", "w").write(codecs.getdecoder("unicode_escape")(my_console.stdout.getvalue())[0])
 print("Captured Errors:", my_console.stderr.getvalue().strip(), sep="\n")
 
