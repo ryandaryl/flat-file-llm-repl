@@ -6,10 +6,18 @@ import os
 import tempfile
 import traceback
 
-def execute_and_collect(code_to_run, con):
+def create_cell(content: str):
+    file_hash = hashlib.md5(content.encode()).hexdigest()
+    with open(file_hash, "w") as f:
+        f.write(content)
+    return file_hash
+
+def execute_and_collect(file_name: str, con: dict):
+    with open(file_name) as f:
+        code_to_run = f.read()
     f = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
     error_string = ""
-    args = {"filename": "myfile.py", "mode": "eval"}
+    args = {"filename": file_name, "mode": "eval"}
     try:
         with redirect_stdout(f):
             nodes, last = list(iter_child_nodes(parse(code_to_run))), ""
@@ -20,11 +28,12 @@ def execute_and_collect(code_to_run, con):
     except Exception as e:
         f.write(traceback.format_exc())
     finally:
-        f.seek(0)
-        print(f.read())
-        with open(f.name, "rb") as f2:
-            os.rename(f.name, hashlib.file_digest(f2, "md5").hexdigest())
+        f.flush()
+        f.buffer.seek(0)
+        file_hash = hashlib.file_digest(f.buffer, "md5").hexdigest()
         f.close()
+        os.rename(f.name, file_hash)
+        return file_hash
 
 
 code_to_run1 = """
@@ -37,5 +46,8 @@ code_to_run2 = "a"
 
 context_global = {}
 for code_to_run in [code_to_run1, code_to_run2]:
-    execute_and_collect(code_to_run, context_global)
+    code_hash = create_cell(code_to_run)
+    output_hash = execute_and_collect(code_hash, context_global)
+    with open(output_hash) as f:
+        print(f.read())
 
