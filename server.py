@@ -6,6 +6,14 @@ import os
 import tempfile
 import traceback
 
+extra = """
+try:
+    from plotly.graph_objs import Figure;
+    Figure.show = Figure.to_html
+except ImportError:
+    pass
+"""
+
 def create_cell(content: str):
     file_hash = hashlib.md5(content.encode()).hexdigest()
     with open(file_hash, "w") as f:
@@ -20,7 +28,7 @@ def execute_and_collect(file_name: str, con: dict):
     args = {"filename": file_name, "mode": "eval"}
     try:
         with redirect_stdout(f):
-            nodes, last = list(iter_child_nodes(parse(code_to_run))), ""
+            nodes, last = list(iter_child_nodes(parse(extra + code_to_run))), ""
             if isinstance(nodes[-1], Expr):
                 nodes, last = nodes[:-1], nodes[-1]
             exec(compile(Module(body=nodes), **{**args, "mode": "exec"}), con)
@@ -42,12 +50,14 @@ print("This is standard output")
 # raise Exception("This is an error message")
 1 / 0
 """
-code_to_run2 = "a"
+code_to_run2 = """
+import numpy as np
+from plotly import express as px
+px.line(np.arange(10)).show()
+"""
 
 context_global = {}
 for code_to_run in [code_to_run1, code_to_run2]:
     code_hash = create_cell(code_to_run)
     output_hash = execute_and_collect(code_hash, context_global)
-    with open(output_hash) as f:
-        print(f.read())
 
