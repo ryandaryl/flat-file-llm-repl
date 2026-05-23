@@ -1,5 +1,49 @@
 import React, { useState, useRef } from 'react';
 
+// Single Card Component
+const Card = ({ card, index, isFirst, isLast, onMove, onDelete }) => (
+  <div style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px' }}>
+    <h4>{card.title}</h4>
+    <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
+    <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
+    <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
+  </div>
+);
+
+// Parent List Component
+export function CardList() {
+  const [cards, setCards] = useState([{ id: 1, title: 'Card 1' }]);
+
+  const handleMove = (index, direction) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= cards.length) return;
+    
+    const newCards = [...cards];
+    [newCards[index], newCards[nextIndex]] = [newCards[nextIndex], newCards[index]]; // Swap
+    setCards(newCards);
+  };
+
+  const handleAdd = () => setCards([...cards, { id: Date.now(), title: `Card ${cards.length + 1}` }]);
+  const handleDelete = (id) => setCards(cards.filter(c => c.id !== id));
+
+  return (
+    <div style={{ maxWidth: '400px', margin: '20px auto' }}>
+      <button onClick={handleAdd} style={{ width: '100%', padding: '10px' }}>+ Add Card</button>
+      {cards.map((card, index) => (
+        <Card 
+          key={card.id} 
+          card={card} 
+          index={index}
+          isFirst={index === 0}
+          isLast={index === cards.length - 1}
+          onMove={handleMove}
+          onDelete={handleDelete}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   const [status, setStatus] = useState('Click the button to start');
   const intervalRef = useRef(null);
@@ -44,6 +88,7 @@ export default function App() {
         Run Background Process
       </button>
       <h3 style={{ marginTop: '20px', color: '#333' }}>{status}</h3>
+      <CardList />
     </div>
   );
 }
