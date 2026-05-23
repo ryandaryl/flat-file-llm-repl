@@ -1,13 +1,19 @@
 import React, { useState, useRef } from 'react';
+import { motion, LayoutGroup } from 'framer-motion';
 
 // Single Card Component
 const Card = ({ card, index, isFirst, isLast, onMove, onDelete }) => (
-  <div style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px' }}>
+  // Change <div> to <motion.div> and add the layout prop
+  <motion.div
+    layout
+    transition={{ type: 'spring', stiffness: 300, damping: 30 }} // Optional: makes the swap snappy
+    style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
+  >
     <h4>{card.title}</h4>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
     <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
-  </div>
+  </motion.div>
 );
 
 // Parent List Component
@@ -29,17 +35,19 @@ export function CardList() {
   return (
     <div style={{ maxWidth: '400px', margin: '20px auto' }}>
       <button onClick={handleAdd} style={{ width: '100%', padding: '10px' }}>+ Add Card</button>
-      {cards.map((card, index) => (
-        <Card 
-          key={card.id} 
-          card={card} 
-          index={index}
-          isFirst={index === 0}
-          isLast={index === cards.length - 1}
-          onMove={handleMove}
-          onDelete={handleDelete}
-        />
-      ))}
+      <LayoutGroup>
+        {cards.map((card, index) => (
+          <Card
+            key={card.id}
+            card={card}
+            index={index}
+            isFirst={index === 0}
+            isLast={index === cards.length - 1}
+            onMove={handleMove}
+            onDelete={handleDelete}
+          />
+        ))}
+      </LayoutGroup>
     </div>
   );
 }
