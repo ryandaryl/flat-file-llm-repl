@@ -13,12 +13,12 @@ export default function App() {
 
     try {
       // 1. Trigger the background process
-      await fetch(`/start-task/${jobId}`, { method: 'POST' });
+      await fetch(`/api/task/start/${jobId}`, { method: 'POST' });
 
       // 2. Poll the status endpoint every 1 second until it finishes
       intervalRef.current = setInterval(async () => {
         try {
-          const res = await fetch(`/task-status/${jobId}`);
+          const res = await fetch(`/api/task/status/${jobId}`);
           const data = await res.json();
           setStatus(`Status: ${data.status}`);
 

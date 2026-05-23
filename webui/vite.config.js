@@ -7,8 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       // Directs any request starting with these paths to the backend
-      '/start-task': 'http://localhost:8000',
-      '/task-status': 'http://localhost:8000',
+      '/api': 'http://localhost:8000',
     }
   }
 })
