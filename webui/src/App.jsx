@@ -1,5 +1,31 @@
 import React, { useState, useRef } from 'react';
 import { motion, LayoutGroup } from 'framer-motion';
+import CodeEditor from '@uiw/react-textarea-code-editor';
+
+const MinimalEditor = ({ initialCode, onChange }) => {
+  const [code, setCode] = useState(initialCode || '');
+
+  return (
+    <div style={{ border: '1px solid #e1e4e8', borderRadius: '6px', overflow: 'hidden' }}>
+      <CodeEditor
+        value={code}
+        language="python"
+        placeholder="Please enter code."
+        onChange={(ev) => {
+          setCode(ev.target.value);
+          if (onChange) onChange(ev.target.value);
+        }}
+        padding={15}
+        lineNumbers={true} // Toggles line numbers automatically
+        style={{
+          fontSize: 14,
+          backgroundColor: "#f5f5f5", // Light theme. Use #161b22 for dark theme.
+          fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace',
+        }}
+      />
+    </div>
+  );
+};
 
 // Single Card Component
 const Card = ({ card, index, isFirst, isLast, onMove, onDelete, onRun }) => (
@@ -9,7 +35,7 @@ const Card = ({ card, index, isFirst, isLast, onMove, onDelete, onRun }) => (
     transition={{ type: 'spring', stiffness: 300, damping: 30 }} // Optional: makes the swap snappy
     style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
   >
-    <h4>{card.title}</h4>
+    <MinimalEditor />
     <button onClick={onRun}>Run</button>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
@@ -34,7 +60,7 @@ export function CardList({ onRun }) {
   const handleDelete = (id) => setCards(cards.filter(c => c.id !== id));
 
   return (
-    <div style={{ maxWidth: '400px', margin: '20px auto' }}>
+    <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
       <button onClick={handleAdd} style={{ width: '100%', padding: '10px' }}>+ Add Card</button>
       <LayoutGroup>
         {cards.map((card, index) => (
