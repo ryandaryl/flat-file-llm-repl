@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion, LayoutGroup } from 'framer-motion';
 
 // Single Card Component
-const Card = ({ card, index, isFirst, isLast, onMove, onDelete }) => (
+const Card = ({ card, index, isFirst, isLast, onMove, onDelete, onRun }) => (
   // Change <div> to <motion.div> and add the layout prop
   <motion.div
     layout
@@ -10,6 +10,7 @@ const Card = ({ card, index, isFirst, isLast, onMove, onDelete }) => (
     style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
   >
     <h4>{card.title}</h4>
+    <button onClick={onRun}>Run</button>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
     <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
@@ -17,13 +18,13 @@ const Card = ({ card, index, isFirst, isLast, onMove, onDelete }) => (
 );
 
 // Parent List Component
-export function CardList() {
+export function CardList({ onRun }) {
   const [cards, setCards] = useState([{ id: 1, title: 'Card 1' }]);
 
   const handleMove = (index, direction) => {
     const nextIndex = index + direction;
     if (nextIndex < 0 || nextIndex >= cards.length) return;
-    
+
     const newCards = [...cards];
     [newCards[index], newCards[nextIndex]] = [newCards[nextIndex], newCards[index]]; // Swap
     setCards(newCards);
@@ -45,6 +46,7 @@ export function CardList() {
             isLast={index === cards.length - 1}
             onMove={handleMove}
             onDelete={handleDelete}
+            onRun={onRun}
           />
         ))}
       </LayoutGroup>
@@ -89,14 +91,8 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: 'sans-serif', textAlign: 'center', marginTop: '50px' }}>
-      <button 
-        onClick={runJob} 
-        style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer' }}
-      >
-        Run Background Process
-      </button>
       <h3 style={{ marginTop: '20px', color: '#333' }}>{status}</h3>
-      <CardList />
+      <CardList onRun={runJob}/>
     </div>
   );
 }
