@@ -16,7 +16,6 @@ const MinimalEditor = ({ initialCode, onChange }) => {
           if (onChange) onChange(ev.target.value);
         }}
         padding={15}
-        lineNumbers={true} // Toggles line numbers automatically
         style={{
           fontSize: 14,
           backgroundColor: "#f5f5f5", // Light theme. Use #161b22 for dark theme.
@@ -27,8 +26,32 @@ const MinimalEditor = ({ initialCode, onChange }) => {
   );
 };
 
+export function LoadingDot() {
+  const dotStyle = {
+    position: 'relative',
+    width: '6px',
+    height: '6px',
+    top: '50%',
+    backgroundColor: '#3498db',
+    borderRadius: '50%',
+    animation: 'pulse 1.5s infinite ease-in-out',
+  };
+
+  return (
+    <div style={{ display: 'inline-block', placeItems: 'center', height: '15px', margin: '0px 2px 0px 2px' }}>
+      <style>{`
+      @keyframes pulse {
+        0%, 100% { transform: scale(0.5); opacity: 0.3; }
+        50% { transform: scale(1.5); opacity: 1; }
+      }
+    `}</style>
+      <div style={dotStyle} />
+    </div>
+  );
+}
+
 // Single Card Component
-const Card = ({ card, index, isFirst, isLast, onMove, onDelete, onRun }) => (
+const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onRun }) => (
   // Change <div> to <motion.div> and add the layout prop
   <motion.div
     layout
@@ -36,7 +59,8 @@ const Card = ({ card, index, isFirst, isLast, onMove, onDelete, onRun }) => (
     style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
   >
     <MinimalEditor />
-    <button onClick={onRun}>Run</button>
+    {statuses[card.id]?.includes('Running') && <LoadingDot />}
+    <button onClick={() => onRun(card.id)} style={{ marginLeft: '10px' }}>Run</button>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
     <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
@@ -44,7 +68,7 @@ const Card = ({ card, index, isFirst, isLast, onMove, onDelete, onRun }) => (
 );
 
 // Parent List Component
-export function CardList({ onRun }) {
+export function CardList({ statuses, onRun }) {
   const [cards, setCards] = useState([{ id: 1, title: 'Card 1' }]);
 
   const handleMove = (index, direction) => {
@@ -61,13 +85,13 @@ export function CardList({ onRun }) {
 
   return (
     <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
-      <button onClick={handleAdd} style={{ width: '100%', padding: '10px' }}>+ Add Card</button>
       <LayoutGroup>
         {cards.map((card, index) => (
           <Card
             key={card.id}
             card={card}
             index={index}
+            statuses={statuses}
             isFirst={index === 0}
             isLast={index === cards.length - 1}
             onMove={handleMove}
@@ -76,20 +100,21 @@ export function CardList({ onRun }) {
           />
         ))}
       </LayoutGroup>
+      <button onClick={handleAdd} style={{ width: '100%', padding: '10px' }}>+ Add Card</button>
     </div>
   );
 }
 
 export default function App() {
-  const [status, setStatus] = useState('Click the button to start');
+  const [status, setStatus] = useState({all: 'Click the button to start'});
   const intervalRef = useRef(null);
 
-  const runJob = async () => {
+  const runJob = async (cardId) => {
     // Clear any existing intervals if clicked repeatedly
     if (intervalRef.current) clearInterval(intervalRef.current);
 
     const jobId = "job_" + Math.random().toString(36).substring(7);
-    setStatus("Starting...");
+    setStatus({[cardId]: "Starting..."});
 
     try {
       // 1. Trigger the background process
@@ -100,25 +125,25 @@ export default function App() {
         try {
           const res = await fetch(`/api/task/status/${jobId}`);
           const data = await res.json();
-          setStatus(`Status: ${data.status}`);
+          setStatus({[cardId]: `Status: ${data.status}`});
 
           if (data.status.includes("Successfully")) {
             clearInterval(intervalRef.current);
           }
         } catch (err) {
-          setStatus("Error checking status");
+          setStatus({[cardId]: "Error checking status"});
           clearInterval(intervalRef.current);
         }
       }, 1000);
     } catch (err) {
-      setStatus("Error starting job");
+      setStatus({[cardId]: "Error starting job"});
     }
   };
 
   return (
     <div style={{ fontFamily: 'sans-serif', textAlign: 'center', marginTop: '50px' }}>
-      <h3 style={{ marginTop: '20px', color: '#333' }}>{status}</h3>
-      <CardList onRun={runJob}/>
+      <h3 style={{ marginTop: '20px', color: '#333' }}>{Object.values(status)[0]}</h3>
+      <CardList statuses={status} onRun={runJob}/>
     </div>
   );
 }
