@@ -38,7 +38,7 @@ export function LoadingDot() {
   };
 
   return (
-    <div style={{ display: 'inline-block', placeItems: 'center', height: '15px', margin: '0px 2px 0px 2px' }}>
+    <div style={{ placeItems: 'center', height: '15px' }}>
       <style>{`
       @keyframes pulse {
         0%, 100% { transform: scale(0.5); opacity: 0.3; }
@@ -50,6 +50,13 @@ export function LoadingDot() {
   );
 }
 
+const StatusDot = ({status}) => (
+  <div style={{ display: 'inline-block', placeItems: 'center', height: '15px', margin: '0px 2px 0px 2px' }}>
+  {status === 'running' && <LoadingDot />}
+  {status !== 'running' && <div style={{ width: '6px' }} />}
+  </div>
+)
+
 // Single Card Component
 const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onRun }) => (
   // Change <div> to <motion.div> and add the layout prop
@@ -59,7 +66,7 @@ const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onRun 
     style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
   >
     <MinimalEditor />
-    {statuses[card.id]?.includes('Running') && <LoadingDot />}
+    <StatusDot status={statuses[card.id]} />
     <button onClick={() => onRun(card.id)} style={{ marginLeft: '10px' }}>Run</button>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
@@ -106,7 +113,7 @@ export function CardList({ statuses, onRun }) {
 }
 
 export default function App() {
-  const [status, setStatus] = useState({all: 'Click the button to start'});
+  const [status, setStatus] = useState({all: 'never_ran'});
   const intervalRef = useRef(null);
 
   const runJob = async (cardId) => {
@@ -114,7 +121,7 @@ export default function App() {
     if (intervalRef.current) clearInterval(intervalRef.current);
 
     const jobId = "job_" + Math.random().toString(36).substring(7);
-    setStatus({[cardId]: "Starting..."});
+    setStatus({[cardId]: "starting"});
 
     try {
       // 1. Trigger the background process
@@ -125,24 +132,32 @@ export default function App() {
         try {
           const res = await fetch(`/api/task/status/${jobId}`);
           const data = await res.json();
-          setStatus({[cardId]: `Status: ${data.status}`});
+          setStatus({[cardId]: data.status});
 
-          if (data.status.includes("Successfully")) {
+          if (data.status === "success") {
             clearInterval(intervalRef.current);
           }
         } catch (err) {
-          setStatus({[cardId]: "Error checking status"});
+          setStatus({[cardId]: "check_error"});
           clearInterval(intervalRef.current);
         }
       }, 1000);
     } catch (err) {
-      setStatus({[cardId]: "Error starting job"});
+      setStatus({[cardId]: "start_error"});
     }
   };
 
   return (
     <div style={{ fontFamily: 'sans-serif', textAlign: 'center', marginTop: '50px' }}>
-      <h3 style={{ marginTop: '20px', color: '#333' }}>{Object.values(status)[0]}</h3>
+      <h3 style={{ marginTop: '20px', color: '#333' }}>{{
+        never_ran: "Click the button to start",
+        starting: "Starting...",
+        waiting: "Waiting...",
+        running: "Status: Running",
+        success: "Status: Task Completed Successfully!",
+        check_error: "Error checking status",
+        start_error: "Error starting job"
+      }[Object.values(status)[0]]}</h3>
       <CardList statuses={status} onRun={runJob}/>
     </div>
   );
