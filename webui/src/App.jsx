@@ -58,21 +58,22 @@ const StatusDot = ({status}) => (
 )
 
 // Single Card Component
-const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onRun }) => (
-  // Change <div> to <motion.div> and add the layout prop
+const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onRun }) => {
+  const [code, setCode] = useState('');
+  return (
   <motion.div
     layout
-    transition={{ type: 'spring', stiffness: 300, damping: 30 }} // Optional: makes the swap snappy
+    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
   >
-    <MinimalEditor />
+    <MinimalEditor onChange={setCode} />
     <StatusDot status={statuses[card.id]} />
-    <button onClick={() => onRun(card.id)} style={{ marginLeft: '10px' }}>Run</button>
+    <button onClick={() => onRun({id: card.id, data: {content: code}})} style={{ marginLeft: '10px' }}>Run</button>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
     <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
   </motion.div>
-);
+)};
 
 // Parent List Component
 export function CardList({ statuses, onRun }) {
@@ -116,34 +117,40 @@ export default function App() {
   const [status, setStatus] = useState({all: 'never_ran'});
   const intervalRef = useRef(null);
 
-  const runJob = async (cardId) => {
+  const runJob = async ({id, data}) => {
     // Clear any existing intervals if clicked repeatedly
     if (intervalRef.current) clearInterval(intervalRef.current);
 
     const jobId = "job_" + Math.random().toString(36).substring(7);
-    setStatus({[cardId]: "starting"});
+    setStatus({[id]: "starting"});
 
     try {
       // 1. Trigger the background process
-      await fetch(`/api/task/start/${jobId}`, { method: 'POST' });
+      await fetch(`/api/task/start/${jobId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
 
       // 2. Poll the status endpoint every 1 second until it finishes
       intervalRef.current = setInterval(async () => {
         try {
-          const res = await fetch(`/api/task/status/${jobId}`);
-          const data = await res.json();
-          setStatus({[cardId]: data.status});
+          const response = await fetch(`/api/task/status/${jobId}`);
+          const responseData = await response.json();
+          setStatus({[id]: responseData.status});
 
-          if (data.status === "success") {
+          if (responseData.status === "success") {
             clearInterval(intervalRef.current);
           }
         } catch (err) {
-          setStatus({[cardId]: "check_error"});
+          setStatus({[id]: "check_error"});
           clearInterval(intervalRef.current);
         }
       }, 1000);
     } catch (err) {
-      setStatus({[cardId]: "start_error"});
+      setStatus({[id]: "start_error"});
     }
   };
 
