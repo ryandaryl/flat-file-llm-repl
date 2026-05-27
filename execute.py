@@ -46,7 +46,7 @@ def execute_and_collect(file_name: str, con: dict):
         os.rename(f.name, "project/" + file_hash)
         return file_hash
 
-def execute_code_and_write_file(code: str, con: dict):
+def execute_code_and_write_files(code: str, con: dict):
     file_hash = create_cell(content=code)
     execute_and_collect(file_name=file_hash, con=con)
 
