@@ -144,6 +144,10 @@ export default function App() {
           if (responseData.status === "success") {
             clearInterval(intervalRef.current);
           }
+
+          if (responseData.status.includes("error")) {
+            clearInterval(intervalRef.current);
+          }
         } catch (err) {
           setStatus({[id]: "check_error"});
           clearInterval(intervalRef.current);
@@ -163,7 +167,8 @@ export default function App() {
         running: "Status: Running",
         success: "Status: Task Completed Successfully!",
         check_error: "Error checking status",
-        start_error: "Error starting job"
+        start_error: "Error starting job",
+        run_error: "Error running job",
       }[Object.values(status)[0]]}</h3>
       <CardList statuses={status} onRun={runJob}/>
     </div>

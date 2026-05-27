@@ -2,18 +2,25 @@ import asyncio
 from fastapi import APIRouter, FastAPI, BackgroundTasks
 from fastapi.responses import HTMLResponse
 
+from execute import execute_code_and_write_file
+
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 # A simple in-memory database to store job progress
 JOBS = {}
+context = {}
 
 async def heavy_computation(job_id: str, data: dict):
     """The background task. Updates status as it processes."""
     JOBS[job_id] = "running"
     await asyncio.sleep(5)  # Simulate a 5-second heavy background job
+    try:
+        execute_code_and_write_file(code=data["content"], con=context)
+    except Exception as e:
+        JOBS[job_id] = "run_error"
+        raise e
     JOBS[job_id] = "success"
-    print(data)
 
 @api_router.post("/task/start/{job_id}")
 def start_task(job_id: str, data: dict, background_tasks: BackgroundTasks):
