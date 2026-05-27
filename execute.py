@@ -35,7 +35,7 @@ def execute_and_collect(file_name: str, con: dict):
             if last:
                 result = eval(compile(Expression(body=last.value), **args), con)
                 if result is not None:
-                    print(output)
+                    print(result)
     except Exception as e:
         f.write(traceback.format_exc())
     finally:

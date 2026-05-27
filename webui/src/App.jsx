@@ -58,17 +58,16 @@ const StatusDot = ({status}) => (
 )
 
 // Single Card Component
-const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onRun }) => {
-  const [code, setCode] = useState('');
+const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onChange, onRun }) => {
   return (
   <motion.div
     layout
     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
   >
-    <MinimalEditor onChange={setCode} />
+    <MinimalEditor onChange={onChange} />
     <StatusDot status={statuses[card.id]} />
-    <button onClick={() => onRun({id: card.id, data: {content: code}})} style={{ marginLeft: '10px' }}>Run</button>
+    <button onClick={() => onRun({id: card.id, data: {content: card.content}})} style={{ marginLeft: '10px' }}>Run</button>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
     <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
@@ -77,7 +76,14 @@ const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onRun 
 
 // Parent List Component
 export function CardList({ statuses, onRun }) {
-  const [cards, setCards] = useState([{ id: 1, title: 'Card 1' }]);
+  const [cards, setCards] = useState([{ id: 1, title: 'Card 1', content: ''}]);
+  const setCardContent = (id, content) => {
+    setCards(prevCards =>
+      prevCards.map(card =>
+        card.id === id ? { ...card, content: content } : card
+      )
+    );
+  };
 
   const handleMove = (index, direction) => {
     const nextIndex = index + direction;
@@ -88,7 +94,7 @@ export function CardList({ statuses, onRun }) {
     setCards(newCards);
   };
 
-  const handleAdd = () => setCards([...cards, { id: Date.now(), title: `Card ${cards.length + 1}` }]);
+  const handleAdd = () => setCards([...cards, { id: Date.now(), title: `Card ${cards.length + 1}`, content: '' }]);
   const handleDelete = (id) => setCards(cards.filter(c => c.id !== id));
 
   return (
@@ -104,6 +110,7 @@ export function CardList({ statuses, onRun }) {
             isLast={index === cards.length - 1}
             onMove={handleMove}
             onDelete={handleDelete}
+            onChange={(content) => setCardContent(card.id, content)}
             onRun={onRun}
           />
         ))}
