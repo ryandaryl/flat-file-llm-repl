@@ -1,6 +1,8 @@
+import os
 import asyncio
 from fastapi import APIRouter, FastAPI, BackgroundTasks
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from execute import execute_code_and_write_files
 
@@ -34,4 +36,14 @@ def get_status(job_id: str):
     status = JOBS.get(job_id, "Not Found")
     return {"job_id": job_id, "status": status}
 
+@api_router.get("/cell/list/")
+def list_cells():
+    return sorted(["/cell/" + file for file in os.listdir("project") if file != "output"])
+
+@api_router.get("/output/list/")
+def list_output():
+    return sorted(["/output/" + file for file in os.listdir("project/output")])
+
+app.mount("/cell", StaticFiles(directory="project"), name="cell")
+app.mount("/output", StaticFiles(directory="project/output"), name="output")
 app.include_router(api_router)

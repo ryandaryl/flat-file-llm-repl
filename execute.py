@@ -43,7 +43,7 @@ def execute_and_collect(file_name: str, con: dict):
         f.buffer.seek(0)
         file_hash = hashlib.file_digest(f.buffer, "md5").hexdigest()
         f.close()
-        os.rename(f.name, "project/" + file_hash)
+        os.rename(f.name, "project/output/" + file_hash)
         return file_hash
 
 def execute_code_and_write_files(code: str, con: dict):
