@@ -93,17 +93,18 @@ export function CardList({ statuses, onRun }) {
   const handleAdd = () => setCards([...cards, { id: Date.now(), content: '' }]);
   const handleDelete = (id) => setCards(cards.filter(c => c.id !== id));
 
+  const getContent = async (urls) => Object.fromEntries(
+      await Promise.all(urls.map(async url => [url, await (await fetch(`/api${url}`)).text()]))
+  );
+
   const handleReset = async () => {
     const response = await fetch('/api/cell/list/');
     const urls = await response.json();
 
-    const combinedResults = await Promise.all(
-      urls.map(async (url) => ({
-        id: url,
-        content: await (await fetch(`/api${url}`)).text()
-      }))
-    );
-
+    const contentMap = await getContent(urls);
+    const combinedResults = Object.entries(contentMap).map(([key, value]) => (
+      {id: key, content: value}
+    ));
     setCards(combinedResults);
   };
 
