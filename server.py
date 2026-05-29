@@ -44,6 +44,7 @@ def list_cells():
 def list_output():
     return sorted(["/output/" + file for file in os.listdir("project/output")])
 
-app.mount("/cell", StaticFiles(directory="project"), name="cell")
-app.mount("/output", StaticFiles(directory="project/output"), name="output")
 app.include_router(api_router)
+
+app.mount("/api/cell", StaticFiles(directory="project"), name="cell")
+app.mount("/api/output", StaticFiles(directory="project/output"), name="output")

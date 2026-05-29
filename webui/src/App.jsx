@@ -2,8 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion, LayoutGroup } from 'framer-motion';
 import CodeEditor from '@uiw/react-textarea-code-editor';
 
-const MinimalEditor = ({ initialCode, onChange }) => {
-  const [code, setCode] = useState(initialCode || '');
+const MinimalEditor = ({ code, onChange }) => {
 
   return (
     <div style={{ border: '1px solid #e1e4e8', borderRadius: '6px', overflow: 'hidden' }}>
@@ -11,10 +10,7 @@ const MinimalEditor = ({ initialCode, onChange }) => {
         value={code}
         language="python"
         placeholder="Please enter code."
-        onChange={(ev) => {
-          setCode(ev.target.value);
-          if (onChange) onChange(ev.target.value);
-        }}
+        onChange={(ev) => onChange(ev.target.value)}
         padding={15}
         style={{
           fontSize: 14,
@@ -65,7 +61,7 @@ const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onChan
     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
   >
-    <MinimalEditor onChange={onChange} />
+    <MinimalEditor code={card.content} onChange={onChange} />
     <StatusDot status={statuses[card.id]} />
     <button onClick={() => onRun({id: card.id, data: {content: card.content}})} style={{ marginLeft: '10px' }}>Run</button>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
@@ -76,7 +72,7 @@ const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onChan
 
 // Parent List Component
 export function CardList({ statuses, onRun }) {
-  const [cards, setCards] = useState([{ id: 1, title: 'Card 1', content: ''}]);
+  const [cards, setCards] = useState([{ id: 1, content: ''}]);
   const setCardContent = (id, content) => {
     setCards(prevCards =>
       prevCards.map(card =>
@@ -94,8 +90,22 @@ export function CardList({ statuses, onRun }) {
     setCards(newCards);
   };
 
-  const handleAdd = () => setCards([...cards, { id: Date.now(), title: `Card ${cards.length + 1}`, content: '' }]);
+  const handleAdd = () => setCards([...cards, { id: Date.now(), content: '' }]);
   const handleDelete = (id) => setCards(cards.filter(c => c.id !== id));
+
+  const handleReset = async () => {
+    const response = await fetch('/api/cell/list/');
+    const urls = await response.json();
+
+    const combinedResults = await Promise.all(
+      urls.map(async (url) => ({
+        id: url,
+        content: await (await fetch(`/api${url}`)).text()
+      }))
+    );
+
+    setCards(combinedResults);
+  };
 
   return (
     <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
@@ -116,6 +126,7 @@ export function CardList({ statuses, onRun }) {
         ))}
       </LayoutGroup>
       <button onClick={handleAdd} style={{ width: '100%', padding: '10px' }}>+ Add Card</button>
+      <button onClick={handleReset} style={{ width: '100%', padding: '10px' }}>Reset</button>
     </div>
   );
 }
