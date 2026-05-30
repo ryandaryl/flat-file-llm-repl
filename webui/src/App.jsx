@@ -67,6 +67,7 @@ const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onChan
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
     <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
+    {card.output && <div style={{ textAlign: 'left'}}>{card.output}</div>}
   </motion.div>
 )};
 
