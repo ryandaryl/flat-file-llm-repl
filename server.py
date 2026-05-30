@@ -36,15 +36,24 @@ def get_status(job_id: str):
     status = JOBS.get(job_id, "Not Found")
     return {"job_id": job_id, "status": status}
 
-@api_router.get("/cell/list/")
-def list_cells():
-    return sorted(["/cell/" + file for file in os.listdir("project") if file != "output"])
-
-@api_router.get("/output/list/")
-def list_output():
-    return sorted(["/output/" + file for file in os.listdir("project/output")])
+@api_router.post("/execution/list/")
+def list_executions(query: dict):
+    """
+    {
+        "content": {"default": True}, Whether to read cell content
+        "output": {"default": {"start": null, "end": null}}, Which output lines to read for cells
+    }
+    """
+    output_list = sorted([file for file in os.listdir("project/output")])
+    cells = sorted([file for file in os.listdir("project") if file != "output"])
+    output_list = output_list + [None]*(len(cells) - len(output_list))
+    return [{
+            "id": cell,
+            "content_hash": cell,
+            "output_hash": output,
+            "content": open("project/" + cell).read(),
+            "output": open("project/output/" + output).read(),
+        }
+        for cell, output in zip(cells, output_list, strict=True)]
 
 app.include_router(api_router)
-
-app.mount("/api/cell", StaticFiles(directory="project"), name="cell")
-app.mount("/api/output", StaticFiles(directory="project/output"), name="output")
