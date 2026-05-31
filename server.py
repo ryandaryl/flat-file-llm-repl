@@ -4,6 +4,7 @@ from fastapi import APIRouter, FastAPI, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+import database
 from execute import execute_code_and_write_files
 
 app = FastAPI()
@@ -44,16 +45,14 @@ def list_executions(query: dict):
         "output": {"default": {"start": null, "end": null}}, Which output lines to read for cells
     }
     """
-    output_list = sorted([file for file in os.listdir("project/output")])
-    cells = sorted([file for file in os.listdir("project") if file != "output"])
-    output_list = output_list + [None]*(len(cells) - len(output_list))
+    conn = database.init_db("project.db")
+    rows = database.fetch_rows(conn, *[None]*3)
     return [{
-            "id": cell,
-            "content_hash": cell,
-            "output_hash": output,
-            "content": open("project/" + cell).read(),
-            "output": open("project/output/" + output).read(),
-        }
-        for cell, output in zip(cells, output_list, strict=True)]
+        "id": row2["section"],
+        "content_hash": row2["section"],
+        "output_hash": row1["section"],
+        "content": row2["data"],
+        "output": row1["data"],
+    } for row1, row2 in zip(rows[::2], rows[1::2])]
 
 app.include_router(api_router)

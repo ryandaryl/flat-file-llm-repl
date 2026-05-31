@@ -1,10 +1,12 @@
 from ast import iter_child_nodes, parse, Expr, Module, Expression
+import datetime
 from contextlib import redirect_stdout
 import hashlib
 import io
 import os
 import tempfile
 import traceback
+import database
 
 extra = """
 try:
@@ -15,20 +17,23 @@ except ImportError:
 """
 
 def create_cell(content: str):
-    file_hash = hashlib.md5(content.encode()).hexdigest()
-    with open("project/" + file_hash, "w") as f:
+    section_hash = hashlib.md5(content.encode()).hexdigest()
+    conn = database.init_db("project.db")
+    with database.SQLiteStreamWriter(conn=conn, section=section_hash) as f:
         f.write(content)
-    return file_hash
+    return section_hash
 
-def execute_and_collect(file_name: str, con: dict):
-    with open("project/" + file_name) as f:
-        code_to_run = f.read()
-    f = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
+def execute_and_collect(code: str, con: dict):
+    conn = database.init_db("project.db")
+    section_hash = hashlib.md5(str(datetime.datetime.now()).encode("utf-8")).hexdigest()
+    f = database.SQLiteStreamWriter(conn=conn, section=section_hash)
     error_string = ""
-    args = {"filename": file_name, "mode": "eval"}
+    ftemp = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
+    ftemp.write(code)
+    args = {"filename": ftemp.name, "mode": "eval"}
     try:
         with redirect_stdout(f):
-            nodes, last = list(iter_child_nodes(parse(extra + code_to_run))), ""
+            nodes, last = list(iter_child_nodes(parse(extra + code))), ""
             if isinstance(nodes[-1], Expr):
                 nodes, last = nodes[:-1], nodes[-1]
             exec(compile(Module(body=nodes), **{**args, "mode": "exec"}), con)
@@ -40,15 +45,13 @@ def execute_and_collect(file_name: str, con: dict):
         f.write(traceback.format_exc())
     finally:
         f.flush()
-        f.buffer.seek(0)
-        file_hash = hashlib.file_digest(f.buffer, "md5").hexdigest()
         f.close()
-        os.rename(f.name, "project/output/" + file_hash)
-        return file_hash
+        ftemp.close()
+        return section_hash
 
 def execute_code_and_write_files(code: str, con: dict):
-    file_hash = create_cell(content=code)
-    execute_and_collect(file_name=file_hash, con=con)
+    create_cell(content=code)
+    execute_and_collect(code, con=con)
 
 if __name__ == "__main__":
     code_to_run1 = """
