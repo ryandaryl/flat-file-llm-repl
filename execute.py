@@ -50,8 +50,12 @@ def execute_and_collect(code: str, con: dict):
         return section_hash
 
 def execute_code_and_write_files(code: str, con: dict):
-    create_cell(content=code)
-    execute_and_collect(code, con=con)
+    previous_code_hash = con.get("_previous_code_hash")
+    code_hash = create_cell(content=code)
+    output_hash = execute_and_collect(code, con=con)
+    con["_previous_code_hash"] = code_hash
+    conn = database.init_db("project.db")
+    database.insert_execution(conn, previous=previous_code_hash, code=code_hash, output=output_hash)
 
 if __name__ == "__main__":
     code_to_run1 = """

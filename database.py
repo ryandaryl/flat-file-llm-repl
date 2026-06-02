@@ -8,11 +8,19 @@ def init_db(db_path: str):
     cursor.execute("PRAGMA cache_size = -200000;") 
     
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS dataset (
+        CREATE TABLE IF NOT EXISTS sections (
             section TEXT,
             row INTEGER,
             data BLOB,
             PRIMARY KEY (section, row)
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS executions (
+            previous TEXT,
+            code TEXT,
+            output TEXT,
+            PRIMARY KEY (previous, code)
         )
     ''')
     conn.commit()
@@ -21,24 +29,47 @@ def init_db(db_path: str):
 def insert_row(conn, section_name, row, data: bytes):
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT OR REPLACE INTO dataset (section, row, data) VALUES (?, ?, ?)",
+        "INSERT OR REPLACE INTO sections (section, row, data) VALUES (?, ?, ?)",
         (section_name, row, data)
     )
     conn.commit()
 
 def delete_section(conn, section_name):
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM dataset WHERE section = ?", (section_name,))
+    cursor.execute("DELETE FROM sections WHERE section = ?", (section_name,))
     conn.commit()
-    cursor.execute("VACUUM;") 
+    cursor.execute("VACUUM;")
 
 def fetch_rows(conn, section_name, min_row, max_row):
     cursor = conn.cursor()
     cursor.execute(
         """SELECT section, GROUP_CONCAT(data, char(10)) AS data
-        FROM dataset GROUP BY section
+        FROM sections GROUP BY section
         -- WHERE section = ? AND row >= ? AND row < ?"""
         # , (section_name, min_row, max_row)
+    )
+    result = [dict(row) for row in cursor.fetchall()]
+    return result
+
+def insert_execution(conn, previous, code, output):
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR REPLACE INTO executions (previous, code, output) VALUES (?, ?, ?)",
+        (previous, code, output)
+    )
+    conn.commit()
+
+def delete_execution(conn, previous, code):
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM executions WHERE state = ? AND code = ?", (previous, code))
+    conn.commit()
+    cursor.execute("VACUUM;")
+
+def fetch_executions(conn):
+    cursor = conn.cursor()
+    cursor.execute(
+        """SELECT previous, code, output
+        FROM executions"""
     )
     result = [dict(row) for row in cursor.fetchall()]
     return result
@@ -65,7 +96,7 @@ class SQLiteStreamWriter:
                 cleaned_text = line.strip()
                 if cleaned_text:
                     # Insert both the row index and the text line
-                    self.cursor.execute("INSERT INTO dataset VALUES (?, ?, ?)", (self.section, self.row, cleaned_text))
+                    self.cursor.execute("INSERT OR REPLACE INTO sections VALUES (?, ?, ?)", (self.section, self.row, cleaned_text))
                     self.conn.commit()
                     self.row += 1  # Automatically increment on each newline
             
@@ -77,7 +108,7 @@ class SQLiteStreamWriter:
         if self.buffer:
             remaining_text = "".join(self.buffer).strip()
             if remaining_text:
-                self.cursor.execute("INSERT INTO dataset VALUES (?, ?, ?)", (self.section, self.row, remaining_text))
+                self.cursor.execute("INSERT OR REPLACE INTO sections VALUES (?, ?, ?)", (self.section, self.row, remaining_text))
                 self.conn.commit()
                 self.row += 1
             self.buffer.clear()

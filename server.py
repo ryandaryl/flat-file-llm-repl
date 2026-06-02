@@ -46,13 +46,14 @@ def list_executions(query: dict):
     }
     """
     conn = database.init_db("project.db")
-    rows = database.fetch_rows(conn, *[None]*3)
+    executions = database.fetch_executions(conn)
+    sections = {section["section"]: section["data"] for section in database.fetch_rows(conn, *[None]*3)}
     return [{
-        "id": row2["section"],
-        "content_hash": row2["section"],
-        "output_hash": row1["section"],
-        "content": row2["data"],
-        "output": row1["data"],
-    } for row1, row2 in zip(rows[::2], rows[1::2])]
+        "id": (execution["previous"] or "0"*32) + execution["code"],
+        "content_hash": execution["code"],
+        "output_hash": execution["output"],
+        "content": sections[execution["code"]],
+        "output": sections.get(execution["output"]),
+    } for execution in executions]
 
 app.include_router(api_router)
