@@ -72,8 +72,7 @@ const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onChan
 )};
 
 // Parent List Component
-export function CardList({ statuses, onRun }) {
-  const [cards, setCards] = useState([{ id: 1, content: ''}]);
+export function CardList({ cards, statuses, onRun, setCards, handleReset }) {
   const setCardContent = (id, content) => {
     setCards(prevCards =>
       prevCards.map(card =>
@@ -93,22 +92,6 @@ export function CardList({ statuses, onRun }) {
 
   const handleAdd = () => setCards([...cards, { id: Date.now(), content: '' }]);
   const handleDelete = (id) => setCards(cards.filter(c => c.id !== id));
-
-  const handleReset = async () => {
-    const query = {
-        "content": {"default": true},
-        "output": {"default": {"start": null, "end": null}},
-    }
-    const response = await fetch(`/api/execution/list/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(query)
-    });
-    const combinedResults = await response.json();
-    setCards(combinedResults);
-  };
 
   return (
     <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
@@ -135,8 +118,25 @@ export function CardList({ statuses, onRun }) {
 }
 
 export default function App() {
+  const [cards, setCards] = useState([{ id: 1, content: ''}]);
   const [status, setStatus] = useState({all: 'never_ran'});
   const intervalRef = useRef(null);
+
+  const handleReset = async () => {
+    const query = {
+        "content": {"default": true},
+        "output": {"default": {"start": null, "end": null}},
+    }
+    const response = await fetch(`/api/execution/list/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(query)
+    });
+    const combinedResults = await response.json();
+    setCards(combinedResults);
+  };
 
   const runJob = async ({id, data}) => {
     // Clear any existing intervals if clicked repeatedly
@@ -155,25 +155,23 @@ export default function App() {
         body: JSON.stringify(data)
       });
 
-      // 2. Poll the status endpoint every 1 second until it finishes
+      // 2. Poll the status endpoint every 50 milliseconds until it finishes
       intervalRef.current = setInterval(async () => {
         try {
           const response = await fetch(`/api/task/status/${jobId}`);
           const responseData = await response.json();
           setStatus({[id]: responseData.status});
 
-          if (responseData.status === "success") {
+          if ((responseData.status === "success") || (responseData.status.includes("error"))) {
             clearInterval(intervalRef.current);
+            handleReset();
           }
 
-          if (responseData.status.includes("error")) {
-            clearInterval(intervalRef.current);
-          }
         } catch (err) {
           setStatus({[id]: "check_error"});
           clearInterval(intervalRef.current);
         }
-      }, 1000);
+      }, 50);
     } catch (err) {
       setStatus({[id]: "start_error"});
     }
@@ -191,7 +189,7 @@ export default function App() {
         start_error: "Error starting job",
         run_error: "Error running job",
       }[Object.values(status)[0]]}</h3>
-      <CardList statuses={status} onRun={runJob}/>
+      <CardList cards={cards} statuses={status} onRun={runJob} setCards={setCards} handleReset={handleReset} />
     </div>
   );
 }
