@@ -1,141 +1,109 @@
-import sqlite3
+import os
+import json
+from typing import List, Dict
 
-def init_db(db_path: str):
-    if not db_path.endswith(".db"):
-        db_path += ".db"
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA page_size = 65536;")
-    cursor.execute("PRAGMA cache_size = -200000;") 
+# Configuration constants
+DATA_DIR = "project_data"
+SECTIONS_DIR = os.path.join(DATA_DIR, "sections")
+EXECUTIONS_FILE = os.path.join(DATA_DIR, "executions.jsonl")
+
+def init_db(db_path: str = None):
+    """Initialises the file system structure."""
+    os.makedirs(SECTIONS_DIR, exist_ok=True)
+    # Ensure executions file exists
+    if not os.path.exists(EXECUTIONS_FILE):
+        with open(EXECUTIONS_FILE, "w", encoding="utf-8") as f:
+            pass
+
+def insert_row(conn, section_name: str, row: int, data: bytes):
+    """Appends binary or text data directly to a section file."""
+    init_db()
+    file_path = os.path.join(SECTIONS_DIR, section_name)
+    mode = "ab" if isinstance(data, bytes) else "a"
+    encoding = None if isinstance(data, bytes) else "utf-8"
     
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sections (
-            section TEXT,
-            row INTEGER,
-            data BLOB,
-            PRIMARY KEY (section, row)
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS executions (
-            previous TEXT,
-            code TEXT,
-            output TEXT,
-            PRIMARY KEY (previous, code)
-        )
-    ''')
-    conn.commit()
-    return conn
+    with open(file_path, mode, encoding=encoding) as f:
+        f.write(data)
 
-def insert_row(conn, section_name, row, data: bytes):
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO sections (section, row, data) VALUES (?, ?, ?)",
-        (section_name, row, data)
-    )
-    conn.commit()
+def delete_section(conn, section_name: str):
+    """Deletes a section file from the filesystem."""
+    file_path = os.path.join(SECTIONS_DIR, section_name)
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
-def delete_section(conn, section_name):
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM sections WHERE section = ?", (section_name,))
-    conn.commit()
-    cursor.execute("VACUUM;")
+def fetch_rows(conn, section_name: str, min_row: int = 0, max_row: int = 0) -> List[Dict]:
+    """Reads a section file and returns the simulated aggregation."""
+    file_names = os.listdir(SECTIONS_DIR)
+    sections = []
+    for file_name in file_names:
+        if section_name and section_name == file_name:
+            continue
+        with open(os.path.join(SECTIONS_DIR, file_name), "r", encoding="utf-8") as f:
+            data_content = f.read()
+        sections.append({"section": file_name, "data": data_content})
+    return sections
 
-def fetch_rows(conn, section_name, min_row, max_row):
-    cursor = conn.cursor()
-    cursor.execute(
-        """SELECT section, GROUP_CONCAT(data, char(10)) AS data
-        FROM sections GROUP BY section
-        -- WHERE section = ? AND row >= ? AND row < ?"""
-        # , (section_name, min_row, max_row)
-    )
-    result = [dict(row) for row in cursor.fetchall()]
-    return result
+def insert_execution(conn, previous: str, code: str, output: str):
+    """Appends a single execution row as a line-delimited JSON entry."""
+    init_db()
+    record = {"previous": previous, "code": code, "output": output}
+    with open(EXECUTIONS_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
 
-def insert_execution(conn, previous, code, output):
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO executions (previous, code, output) VALUES (?, ?, ?)",
-        (previous, code, output)
-    )
-    conn.commit()
+def delete_execution(conn, previous: str, code: str):
+    """Removes a row from the execution ledger by rewriting records."""
+    if not os.path.exists(EXECUTIONS_FILE):
+        return
 
-def delete_execution(conn, previous, code):
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM executions WHERE state = ? AND code = ?", (previous, code))
-    conn.commit()
-    cursor.execute("VACUUM;")
+    updated_records = []
+    with open(EXECUTIONS_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                record = json.loads(line)
+                if record.get("previous") == previous and record.get("code") == code:
+                    continue
+                updated_records.append(line)
 
-def fetch_executions(conn):
-    cursor = conn.cursor()
-    cursor.execute(
-        """SELECT previous, code, output
-        FROM executions"""
-    )
-    result = [dict(row) for row in cursor.fetchall()]
-    return result
+    with open(EXECUTIONS_FILE, "w", encoding="utf-8") as f:
+        f.writelines(updated_records)
+
+def fetch_executions(conn) -> List[Dict]:
+    """Retrieves all executions parsed into memory from JSONL rows."""
+    if not os.path.exists(EXECUTIONS_FILE):
+        return []
+
+    results = []
+    with open(EXECUTIONS_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                results.append(json.loads(line))
+    return results
 
 class StreamWriter:
     def __init__(self, conn, section: str):
-        self.conn = conn
-        self.cursor = conn.cursor()
-        self.buffer = []
-        self.section = section
-        self.row = 0  # Track the current row index starting at 0
+        init_db()
+        self.file_path = os.path.join(SECTIONS_DIR, section)
+        # Open in unbuffered text mode to force immediate write output straight to file system
+        self.file = open(self.file_path, "a", buffering=1, encoding="utf-8")
 
-    def write(self, data):
-        # Accumulate string fragments
-        self.buffer.append(data)
-        
-        # If a newline occurs, process all completed lines
-        if '\n' in data:
-            full_text = "".join(self.buffer)
-            lines = full_text.split('\n')
-            
-            # Process all fully completed lines (everything except the last split element)
-            for line in lines[:-1]:
-                cleaned_text = line.strip()
-                if cleaned_text:
-                    # Insert both the row index and the text line
-                    self.cursor.execute("INSERT OR REPLACE INTO sections VALUES (?, ?, ?)", (self.section, self.row, cleaned_text))
-                    self.conn.commit()
-                    self.row += 1  # Automatically increment on each newline
-            
-            # Retain any trailing, incomplete text fragment in the buffer
-            self.buffer = [lines[-1]]
+    def write(self, data: str):
+        """Streams string fragments straight to the filesystem."""
+        if data:
+            self.file.write(data)
 
     def flush(self):
-        # Optional: Flash remaining text if the stream closes without a final newline
-        if self.buffer:
-            remaining_text = "".join(self.buffer).strip()
-            if remaining_text:
-                self.cursor.execute("INSERT OR REPLACE INTO sections VALUES (?, ?, ?)", (self.section, self.row, remaining_text))
-                self.conn.commit()
-                self.row += 1
-            self.buffer.clear()
+        """Forces hardware disk synchronization buffers."""
+        if self.file and not self.file.closed:
+            self.file.flush()
 
     def close(self):
-        """Safely flushes remaining data and closes database resources."""
-        self.flush()
-        if self.cursor:
-            self.cursor.close()
-        if self.conn:
-            self.conn.close()
+        """Safely closes file resources."""
+        if self.file and not self.file.closed:
+            self.file.flush()
+            self.file.close()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-
-if __name__ == "__main__":
-    # Usage
-    db_conn = sqlite3.connect('streamed_stdout')
-    stream_target = SQLiteStreamWriter(db_conn)
-
-    with redirect_stdout(stream_target):
-        print("This line goes straight to SQLite.")
-        print("This line does too, bypassing system memory buffers.")
-
-    db_conn.close()
