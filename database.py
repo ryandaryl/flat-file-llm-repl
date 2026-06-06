@@ -1,6 +1,8 @@
 import sqlite3
 
 def init_db(db_path: str):
+    if not db_path.endswith(".db"):
+        db_path += ".db"
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -74,7 +76,7 @@ def fetch_executions(conn):
     result = [dict(row) for row in cursor.fetchall()]
     return result
 
-class SQLiteStreamWriter:
+class StreamWriter:
     def __init__(self, conn, section: str):
         self.conn = conn
         self.cursor = conn.cursor()
@@ -129,7 +131,7 @@ class SQLiteStreamWriter:
 
 if __name__ == "__main__":
     # Usage
-    db_conn = sqlite3.connect('streamed_stdout.db')
+    db_conn = sqlite3.connect('streamed_stdout')
     stream_target = SQLiteStreamWriter(db_conn)
 
     with redirect_stdout(stream_target):
