@@ -10,8 +10,16 @@ import database
 
 extra = """
 try:
+    import re
     from plotly.graph_objs import Figure;
-    Figure.show = Figure.to_html
+    def plot_to_html(*args, **kwargs):
+        match = re.search(
+            r"(?<=<body>)[\s\S]*?(?=<\/body>)",
+            Figure.to_html(*args, **kwargs),
+            re.IGNORECASE,
+        )
+        return match.group(0).strip() if match else ""
+    Figure.show = plot_to_html
 except ImportError:
     pass
 """
