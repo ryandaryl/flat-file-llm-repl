@@ -26,15 +26,15 @@ except ImportError:
 
 def create_cell(content: str):
     section_hash = hashlib.md5(content.encode()).hexdigest()
-    conn = database.init_db("project")
-    with database.StreamWriter(conn=conn, section=section_hash) as f:
+    database.init_db("project")
+    with database.StreamWriter(section=section_hash) as f:
         f.write(content)
     return section_hash
 
 def execute_and_collect(code: str, con: dict):
-    conn = database.init_db("project")
+    database.init_db("project")
     section_hash = hashlib.md5(str(datetime.datetime.now()).encode("utf-8")).hexdigest()
-    f = database.StreamWriter(conn=conn, section=section_hash)
+    f = database.StreamWriter(section=section_hash)
     error_string = ""
     ftemp = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
     ftemp.write(code)
@@ -62,8 +62,8 @@ def execute_code_and_write_files(code: str, con: dict):
     code_hash = create_cell(content=code)
     output_hash = execute_and_collect(code, con=con)
     con["_previous_code_hash"] = code_hash
-    conn = database.init_db("project")
-    database.insert_execution(conn, previous=previous_code_hash, code=code_hash, output=output_hash)
+    database.init_db("project")
+    database.insert_execution(previous=previous_code_hash, code=code_hash, output=output_hash)
 
 if __name__ == "__main__":
     code_to_run1 = """

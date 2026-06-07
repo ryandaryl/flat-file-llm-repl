@@ -45,9 +45,9 @@ def list_executions(query: dict):
         "output": {"default": {"start": null, "end": null}}, Which output lines to read for cells
     }
     """
-    conn = database.init_db("project.db")
-    executions = database.fetch_executions(conn)
-    sections = {section["section"]: section["data"] for section in database.fetch_rows(conn, *[None]*3)}
+    database.init_db("project.db")
+    executions = database.fetch_executions()
+    sections = {section["section"]: section["data"] for section in database.fetch_rows(*[None]*3)}
     return [{
         "id": (execution["previous"] or "0"*32) + execution["code"],
         "content_hash": execution["code"],

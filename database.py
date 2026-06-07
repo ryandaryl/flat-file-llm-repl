@@ -15,7 +15,7 @@ def init_db(db_path: str = None):
         with open(EXECUTIONS_FILE, "w", encoding="utf-8") as f:
             pass
 
-def insert_row(conn, section_name: str, row: int, data: bytes):
+def insert_row(section_name: str, row: int, data: bytes):
     """Appends binary or text data directly to a section file."""
     init_db()
     file_path = os.path.join(SECTIONS_DIR, section_name)
@@ -25,13 +25,13 @@ def insert_row(conn, section_name: str, row: int, data: bytes):
     with open(file_path, mode, encoding=encoding) as f:
         f.write(data)
 
-def delete_section(conn, section_name: str):
+def delete_section(section_name: str):
     """Deletes a section file from the filesystem."""
     file_path = os.path.join(SECTIONS_DIR, section_name)
     if os.path.exists(file_path):
         os.remove(file_path)
 
-def fetch_rows(conn, section_name: str, min_row: int = 0, max_row: int = 0) -> List[Dict]:
+def fetch_rows(section_name: str, min_row: int = 0, max_row: int = 0) -> List[Dict]:
     """Reads a section file and returns the simulated aggregation."""
     file_names = os.listdir(SECTIONS_DIR)
     sections = []
@@ -43,14 +43,14 @@ def fetch_rows(conn, section_name: str, min_row: int = 0, max_row: int = 0) -> L
         sections.append({"section": file_name, "data": data_content})
     return sections
 
-def insert_execution(conn, previous: str, code: str, output: str):
+def insert_execution(previous: str, code: str, output: str):
     """Appends a single execution row as a line-delimited JSON entry."""
     init_db()
     record = {"previous": previous, "code": code, "output": output}
     with open(EXECUTIONS_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
 
-def delete_execution(conn, previous: str, code: str):
+def delete_execution(previous: str, code: str):
     """Removes a row from the execution ledger by rewriting records."""
     if not os.path.exists(EXECUTIONS_FILE):
         return
@@ -67,7 +67,7 @@ def delete_execution(conn, previous: str, code: str):
     with open(EXECUTIONS_FILE, "w", encoding="utf-8") as f:
         f.writelines(updated_records)
 
-def fetch_executions(conn) -> List[Dict]:
+def fetch_executions() -> List[Dict]:
     """Retrieves all executions parsed into memory from JSONL rows."""
     if not os.path.exists(EXECUTIONS_FILE):
         return []
@@ -80,7 +80,7 @@ def fetch_executions(conn) -> List[Dict]:
     return results
 
 class StreamWriter:
-    def __init__(self, conn, section: str):
+    def __init__(self, section: str):
         init_db()
         self.file_path = os.path.join(SECTIONS_DIR, section)
         # Open in unbuffered text mode to force immediate write output straight to file system
