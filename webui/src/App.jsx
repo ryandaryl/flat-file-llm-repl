@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, LayoutGroup } from 'framer-motion';
 import CodeEditor from '@uiw/react-textarea-code-editor';
+import HTMLViewer from './HTMLViewer';
 
 const MinimalEditor = ({ code, onChange }) => {
 
@@ -67,7 +68,7 @@ const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onChan
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
     <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
-    {card.output && <div style={{ textAlign: 'left'}}>{card.output}</div>}
+    {card.output && <HTMLViewer rawHtml={card.output} />}
   </motion.div>
 )};
 
