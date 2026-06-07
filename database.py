@@ -83,6 +83,8 @@ class StreamWriter:
     def __init__(self, section: str):
         init_db()
         self.file_path = os.path.join(SECTIONS_DIR, section)
+        if os.path.exists(self.file_path):
+            self.file_path = os.devnull
         # Open in unbuffered text mode to force immediate write output straight to file system
         self.file = open(self.file_path, "a", buffering=1, encoding="utf-8")
 
