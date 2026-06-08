@@ -37,6 +37,11 @@ def get_status(job_id: str):
     status = JOBS.get(job_id, "Not Found")
     return {"job_id": job_id, "status": status}
 
+@api_router.post("/execution/hide/")
+def hide_execution(query: dict):
+    database.init_db("project")
+    database.insert_execution(previous=None, code=query["code_hash"], output=query["output_hash"], type="hide")
+
 @api_router.post("/execution/list/")
 def list_executions(query: dict):
     """
@@ -47,6 +52,8 @@ def list_executions(query: dict):
     """
     database.init_db("project.db")
     executions = database.fetch_executions()
+    executions_with_type = {(execution["code"], execution["output"], execution["type"]) for execution in executions}
+    filtered_executions = [execution for execution in executions if (execution["code"], execution["output"], "hide") not in executions_with_type]
     sections = {section["section"]: section["data"] for section in database.fetch_rows(*[None]*3)}
     return [{
         "id": (execution["previous"] or "0"*32) + execution["code"],
@@ -54,6 +61,7 @@ def list_executions(query: dict):
         "output_hash": execution["output"],
         "content": sections[execution["code"]],
         "output": sections.get(execution["output"]),
-    } for execution in executions]
+        "type": sections.get(execution["type"]),
+    } for execution in filtered_executions]
 
 app.include_router(api_router)

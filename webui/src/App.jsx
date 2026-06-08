@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, LayoutGroup } from 'framer-motion';
 import CodeEditor from '@uiw/react-textarea-code-editor';
+import md5 from 'blueimp-md5';
 import HTMLViewer from './HTMLViewer';
 
 const MinimalEditor = ({ code, onChange }) => {
@@ -92,7 +93,37 @@ export function CardList({ cards, statuses, onRun, setCards, handleReset }) {
   };
 
   const handleAdd = () => setCards([...cards, { id: Date.now(), content: '' }]);
-  const handleDelete = (id) => setCards(cards.filter(c => c.id !== id));
+
+  const handleDelete = async (id) => {
+    // Find the index of the card to delete
+    const targetIndex = cards.findIndex(c => c.id === id);
+    if (targetIndex === -1) return;
+
+    // Retrieve the target card's content
+    const code = cards[targetIndex].content;
+    const output = cards[targetIndex].output;
+
+    // Calculate the MD5 hashes
+    const code_hash = md5(code);
+    const output_hash = md5(output);
+
+    // Construct the query object with the hashes
+    const query = {
+        "code_hash": code_hash,
+        "output_hash": output_hash,
+    };
+
+    await fetch(`/api/execution/hide/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(query)
+    });
+
+    setCards(cards.filter(c => c.id !== id));
+  };
+
 
   return (
     <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
