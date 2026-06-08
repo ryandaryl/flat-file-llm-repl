@@ -1,61 +1,70 @@
 import os
-import asyncio
-from fastapi import APIRouter, FastAPI, BackgroundTasks
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from flask import Flask, jsonify, request
 
 import database
 from execute import execute_code_and_write_files
 
-app = FastAPI()
-api_router = APIRouter(prefix="/api")
+app = Flask(__name__)
 
 # A simple in-memory database to store job progress
 JOBS = {}
 context = {}
 
-async def background_task(job_id: str, data: dict):
-    """The background task. Updates status as it processes."""
+@app.route("/api/task/start/<job_id>", methods=["POST"])
+def start_task(job_id):
+    """
+    Starts the task in a strict, single-threaded manner. 
+    The HTTP response waits until the task finishes processing.
+    """
+    data = request.json
+    JOBS[job_id] = "waiting"
+    
+    # Strictly synchronous execution on the main thread without background tasks
     JOBS[job_id] = "running"
     try:
         execute_code_and_write_files(code=data["content"], con=context)
     except Exception as e:
         JOBS[job_id] = "run_error"
-        raise e
+        return jsonify({"status": "run_error", "job_id": job_id, "error": str(e)}), 500
+    
     JOBS[job_id] = "success"
+    return jsonify({"status": "success", "job_id": job_id})
 
-@api_router.post("/task/start/{job_id}")
-def start_task(job_id: str, data: dict, background_tasks: BackgroundTasks):
-    """Starts the background task instantly without blocking the server."""
-    JOBS[job_id] = "waiting"
-    background_tasks.add_task(background_task, job_id, data)
-    return {"status": "waiting", "job_id": job_id}
-
-@api_router.get("/task/status/{job_id}")
-def get_status(job_id: str):
-    """Endpoint for the frontend to check if the task is running or done."""
+@app.route("/api/task/status/<job_id>", methods=["GET"])
+def get_status(job_id):
+    """Endpoint for the frontend to check the task status."""
     status = JOBS.get(job_id, "Not Found")
-    return {"job_id": job_id, "status": status}
+    return jsonify({"job_id": job_id, "status": status})
 
-@api_router.post("/execution/hide/")
-def hide_execution(query: dict):
+@app.route("/api/execution/hide/", methods=["POST"])
+def hide_execution():
+    query = request.json
     database.init_db("project")
     database.insert_execution(previous=None, code=query["code_hash"], output=query["output_hash"], type="hide")
+    return jsonify({"status": "success"})
 
-@api_router.post("/execution/list/")
-def list_executions(query: dict):
+@app.route("/api/execution/list/", methods=["POST"])
+def list_executions():
     """
     {
         "content": {"default": True}, Whether to read cell content
         "output": {"default": {"start": null, "end": null}}, Which output lines to read for cells
     }
     """
+    query = request.json
     database.init_db("project.db")
+    
     executions = database.fetch_executions()
     executions_with_type = {(execution["code"], execution["output"], execution["type"]) for execution in executions}
-    filtered_executions = [execution for execution in executions if (execution["code"], execution["output"], "hide") not in executions_with_type]
+    
+    filtered_executions = [
+        execution for execution in executions 
+        if (execution["code"], execution["output"], "hide") not in executions_with_type
+    ]
+    
     sections = {section["section"]: section["data"] for section in database.fetch_rows(*[None]*3)}
-    return [{
+    
+    results = [{
         "id": (execution["previous"] or "0"*32) + execution["code"],
         "content_hash": execution["code"],
         "output_hash": execution["output"],
@@ -63,5 +72,8 @@ def list_executions(query: dict):
         "output": sections.get(execution["output"]),
         "type": sections.get(execution["type"]),
     } for execution in filtered_executions]
+    
+    return jsonify(results)
 
-app.include_router(api_router)
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=8000, threaded=False, processes=1, debug=False)
