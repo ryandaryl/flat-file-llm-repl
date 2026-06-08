@@ -1,5 +1,7 @@
 import os
+import hashlib
 import json
+import tempfile
 from typing import List, Dict
 
 # Configuration constants
@@ -43,10 +45,10 @@ def fetch_rows(section_name: str, min_row: int = 0, max_row: int = 0) -> List[Di
         sections.append({"section": file_name, "data": data_content})
     return sections
 
-def insert_execution(previous: str, code: str, output: str):
+def insert_execution(previous: str, code: str, output: str, type="run"):
     """Appends a single execution row as a line-delimited JSON entry."""
     init_db()
-    record = {"previous": previous, "code": code, "output": output}
+    record = {"previous": previous, "code": code, "output": output, "type": type}
     with open(EXECUTIONS_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
 
@@ -79,30 +81,48 @@ def fetch_executions() -> List[Dict]:
                 results.append(json.loads(line))
     return results
 
+
 class StreamWriter:
-    def __init__(self, section: str):
+    def __init__(self):
         init_db()
-        self.file_path = os.path.join(SECTIONS_DIR, section)
-        if os.path.exists(self.file_path):
-            self.file_path = os.devnull
-        # Open in unbuffered text mode to force immediate write output straight to file system
-        self.file = open(self.file_path, "a", buffering=1, encoding="utf-8")
+        # Create a secure, unique temporary file in the target directory
+        self.file_fd, self.file_path = tempfile.mkstemp(dir=SECTIONS_DIR, suffix=".tmp")
+
+        # Open the file descriptor in unbuffered text mode
+        self.file = open(self.file_fd, "a", buffering=1, encoding="utf-8")
+        # Initialize the MD5 hasher
+        self._hasher = hashlib.md5()
+        # Public property to expose the hash to the caller after closing
+        self.hash = None
 
     def write(self, data: str):
-        """Streams string fragments straight to the filesystem."""
+        """Streams string fragments straight to the filesystem and updates the hash."""
         if data:
             self.file.write(data)
-
-    def flush(self):
-        """Forces hardware disk synchronization buffers."""
-        if self.file and not self.file.closed:
-            self.file.flush()
+            # MD5 requires bytes, so encode the string data
+            self._hasher.update(data.encode("utf-8"))
 
     def close(self):
-        """Safely closes file resources."""
+        """Safely closes file resources and renames the file to its MD5 hash."""
         if self.file and not self.file.closed:
             self.file.flush()
             self.file.close()
+
+            # Finalise the hash calculation
+            self.hash = self._hasher.hexdigest()
+
+            # Rename the temporary file to its MD5 hash name
+            if os.path.exists(self.file_path):
+                new_path = os.path.join(SECTIONS_DIR, self.hash)
+
+                # Check if a file with this hash already exists to avoid overwriting
+                if not os.path.exists(new_path):
+                    os.rename(self.file_path, new_path)
+                    self.file_path = new_path
+                else:
+                    # Clean up the temp file if the content already exists
+                    os.remove(self.file_path)
+                    self.file_path = new_path
 
     def __enter__(self):
         return self
