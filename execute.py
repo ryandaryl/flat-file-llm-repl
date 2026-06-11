@@ -1,6 +1,6 @@
 from ast import iter_child_nodes, parse, Expr, Module, Expression
 import datetime
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 import hashlib
 import io
 import os
@@ -39,7 +39,7 @@ def execute_and_collect(code: str, con: dict):
     ftemp.write(code)
     args = {"filename": ftemp.name, "mode": "eval"}
     try:
-        with redirect_stdout(f):
+        with redirect_stdout(f), redirect_stderr(f):
             nodes, last = list(iter_child_nodes(parse(extra + code))), ""
             if isinstance(nodes[-1], Expr):
                 nodes, last = nodes[:-1], nodes[-1]
