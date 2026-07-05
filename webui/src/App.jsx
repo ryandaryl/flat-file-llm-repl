@@ -20,6 +20,8 @@ const MinimalEditor = ({ code, onChange, onCtrlEnter }) => {
         placeholder="Please enter code."
         onChange={(ev) => onChange(ev.target.value)}
         onKeyDown={handleKeyDown}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         padding={15}
         style={{
           fontSize: 14,
@@ -31,56 +33,21 @@ const MinimalEditor = ({ code, onChange, onCtrlEnter }) => {
   );
 };
 
-export function LoadingDot() {
-  const dotStyle = {
-    position: 'relative',
-    width: '6px',
-    height: '6px',
-    top: '50%',
-    backgroundColor: '#3498db',
-    borderRadius: '50%',
-    animation: 'pulse 1.5s infinite ease-in-out',
-  };
-
-  return (
-    <div style={{ placeItems: 'center', height: '15px' }}>
-      <style>{`
-      @keyframes pulse {
-        0%, 100% { transform: scale(0.5); opacity: 0.3; }
-        50% { transform: scale(1.5); opacity: 1; }
-      }
-    `}</style>
-      <div style={dotStyle} />
-    </div>
-  );
-}
-
-const StatusDot = ({status}) => (
-  <div style={{ display: 'inline-block', placeItems: 'center', height: '15px', margin: '0px 2px 0px 2px' }}>
-  {status === 'running' && <LoadingDot />}
-  {status !== 'running' && <div style={{ width: '6px' }} />}
-  </div>
-)
-
 // Single Card Component
-const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onChange, onRun }) => {
+const Card = ({ card, isSelected, onSelect, onChange, onRun }) => {
   return (
-  <motion.div
-    layout
-    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-    style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
+  <div
+    style={{ border: isSelected ? '1px solid #f00' : '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
+    onClick={() => onSelect(card.id)}
   >
     <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: {content: card.content}})}/>
-    <StatusDot status={statuses[card.id]} />
-    <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
-    <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
-    <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
     {card.output && <HTMLViewer rawHtml={card.output} />}
-  </motion.div>
+  </div>
 )};
 
 // Parent List Component
-export function CardList({ cards, statuses, onRun, setCards, handleReset }) {
+export function CardList({ cards, onRun, setCards, handleReset }) {
+  const [selectedIds, setSelectedIds] = useState([]);
   const setCardContent = (id, content) => {
     setCards(prevCards =>
       prevCards.map(card =>
@@ -89,13 +56,34 @@ export function CardList({ cards, statuses, onRun, setCards, handleReset }) {
     );
   };
 
-  const handleMove = (index, direction) => {
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= cards.length) return;
+  const handleMove = (ids, direction) => {
+    // 1. Convert IDs to a Set for O(1) lookups
+    const idSet = new Set(ids);
+    if (idSet.size === 0) return;
 
+    // 2. Identify the indices of all selected items
+    const selectedIndices = cards
+      .map((card, index) => (idSet.has(card.id) ? index : -1))
+      .filter(index => index !== -1);
+
+    if (selectedIndices.length === 0) return;
+
+    // 3. Boundary guard: Prevents moving if any edge item hits the boundary
+    if (direction === -1 && selectedIndices[0] === 0) return;
+    if (direction === 1 && selectedIndices[selectedIndices.length - 1] === cards.length - 1) return;
+
+    // 4. Create a copy and extract unselected items
     const newCards = [...cards];
-    [newCards[index], newCards[nextIndex]] = [newCards[nextIndex], newCards[index]]; // Swap
-    setCards(newCards);
+    const selectedItems = selectedIndices.map(i => newCards[i]);
+    const remainingItems = newCards.filter((_, i) => !idSet.has(cards[i].id));
+
+    // 5. Calculate the insertion point for the block of items
+    // Moving up (-1) shifts the block left; moving down (1) shifts it right
+    const insertIndex = selectedIndices[0] + direction;
+
+    // 6. Reconstruct the array
+    remainingItems.splice(insertIndex, 0, ...selectedItems);
+    setCards(remainingItems);
   };
 
   const handleAdd = () => setCards([...cards, { id: Date.now(), content: '' }]);
@@ -134,21 +122,20 @@ export function CardList({ cards, statuses, onRun, setCards, handleReset }) {
   return (
     <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
       <LayoutGroup>
-        {cards.map((card, index) => (
+        {cards.map((card) => (
           <Card
             key={card.id}
             card={card}
-            index={index}
-            statuses={statuses}
-            isFirst={index === 0}
-            isLast={index === cards.length - 1}
-            onMove={handleMove}
-            onDelete={handleDelete}
+            isSelected={selectedIds.includes(card.id)}
+            onSelect={(id) => {setSelectedIds((prevIds) => prevIds.includes(id) ? prevIds.filter((itemIds) => itemIds !== id) : [...prevIds, id])}}
             onChange={(content) => setCardContent(card.id, content)}
             onRun={onRun}
           />
         ))}
       </LayoutGroup>
+      <button disabled={selectedIds.length === 0} onClick={() => handleMove(selectedIds, -1)} style={{ width: '100%', padding: '10px' }}>▲ Up</button>
+      <button disabled={selectedIds.length === 0} onClick={() => handleMove(selectedIds, 1)} style={{ width: '100%', padding: '10px' }}>▼ Down</button>
+      <button disabled={selectedIds.length === 0} onClick={() => selectedIds.forEach(handleDelete)} style={{ color: selectedIds.length === 0 ? undefined : 'red', width: '100%', padding: '10px'}}>Delete</button>
       <button onClick={handleAdd} style={{ width: '100%', padding: '10px' }}>+ Add Card</button>
       <button onClick={handleReset} style={{ width: '100%', padding: '10px' }}>Reset</button>
     </div>
@@ -227,7 +214,7 @@ export default function App() {
         start_error: "Error starting job",
         run_error: "Error running job",
       }[Object.values(status)[0]]}</h3>
-      <CardList cards={cards} statuses={status} onRun={runJob} setCards={setCards} handleReset={handleReset} />
+      <CardList cards={cards} onRun={runJob} setCards={setCards} handleReset={handleReset} />
     </div>
   );
 }
