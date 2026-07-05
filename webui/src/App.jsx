@@ -4,7 +4,13 @@ import CodeEditor from '@uiw/react-textarea-code-editor';
 import md5 from 'blueimp-md5';
 import HTMLViewer from './HTMLViewer';
 
-const MinimalEditor = ({ code, onChange }) => {
+const MinimalEditor = ({ code, onChange, onCtrlEnter }) => {
+  const handleKeyDown = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      onCtrlEnter();
+    }
+  };
 
   return (
     <div style={{ border: '1px solid #e1e4e8', borderRadius: '6px', overflow: 'hidden' }}>
@@ -13,6 +19,7 @@ const MinimalEditor = ({ code, onChange }) => {
         language="python"
         placeholder="Please enter code."
         onChange={(ev) => onChange(ev.target.value)}
+        onKeyDown={handleKeyDown}
         padding={15}
         style={{
           fontSize: 14,
@@ -63,9 +70,8 @@ const Card = ({ card, index, statuses, isFirst, isLast, onMove, onDelete, onChan
     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     style={{ border: '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
   >
-    <MinimalEditor code={card.content} onChange={onChange} />
+    <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: {content: card.content}})}/>
     <StatusDot status={statuses[card.id]} />
-    <button onClick={() => onRun({id: card.id, data: {content: card.content}})} style={{ marginLeft: '10px' }}>Run</button>
     <button disabled={isFirst} onClick={() => onMove(index, -1)}>▲ Up</button>
     <button disabled={isLast} onClick={() => onMove(index, 1)}>▼ Down</button>
     <button onClick={() => onDelete(card.id)} style={{ color: 'red', marginLeft: '10px' }}>Delete</button>
