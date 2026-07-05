@@ -4,6 +4,7 @@ from contextlib import redirect_stdout, redirect_stderr
 import hashlib
 import io
 import os
+import resource
 import tempfile
 import traceback
 import database
@@ -31,7 +32,8 @@ def create_cell(content: str):
         f.write(content)
     return section_hash
 
-def execute_and_collect(code: str, con: dict):
+def execute_and_collect(code: str, con: dict, max_bytes: int = 24 * 1024**3):
+    resource.setrlimit(resource.RLIMIT_AS, (max_bytes, max_bytes))
     database.init_db("project")
     f = database.StreamWriter()
     error_string = ""
