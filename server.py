@@ -1,4 +1,5 @@
 import os
+import traceback
 from flask import Flask, jsonify, request
 
 import database
@@ -22,9 +23,10 @@ def start_task(job_id):
     # Strictly synchronous execution on the main thread without background tasks
     JOBS[job_id] = "running"
     try:
-        execute_code_and_write_files(code=data["content"], con=context)
+        execute_code_and_write_files(code=data["content"], con=context, max_bytes=data["memoryLimit"] * 1024**3)
     except Exception as e:
         JOBS[job_id] = "run_error"
+        print(traceback.format_exc())
         return jsonify({"status": "run_error", "job_id": job_id, "error": str(e)}), 500
     
     JOBS[job_id] = "success"

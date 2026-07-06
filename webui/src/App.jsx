@@ -145,6 +145,7 @@ export function CardList({ cards, onRun, setCards, handleReset }) {
 export default function App() {
   const [cards, setCards] = useState([{ id: 1, content: ''}]);
   const [status, setStatus] = useState({all: 'never_ran'});
+  const [memoryLimit, setMemoryLimit] = useState(24);
   const intervalRef = useRef(null);
 
   const handleReset = async () => {
@@ -177,7 +178,10 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          ...data,
+          memoryLimit: Number(memoryLimit)
+        })
       });
 
       // 2. Poll the status endpoint every 50 milliseconds until it finishes
@@ -205,7 +209,7 @@ export default function App() {
   return (
     <div style={{ fontFamily: 'sans-serif', textAlign: 'center', marginTop: '50px' }}>
       <h3 style={{ marginTop: '20px', color: '#333' }}>{{
-        never_ran: "Click the button to start",
+        never_ran: "Press Ctrl-Enter to start",
         starting: "Starting...",
         waiting: "Waiting...",
         running: "Status: Running",
@@ -214,6 +218,17 @@ export default function App() {
         start_error: "Error starting job",
         run_error: "Error running job",
       }[Object.values(status)[0]]}</h3>
+      <div style={{ marginBottom: '20px' }}>
+        Tasks allocating more than{' '}
+        <input
+          type="number"
+          value={memoryLimit}
+          onChange={(e) => setMemoryLimit(e.target.value)}
+          style={{ width: '50px', textAlign: 'center', padding: '2px', margin: '0 5px' }}
+          min="1"
+        />{' '}
+        GB of RAM will be stopped gracefully.
+      </div>
       <CardList cards={cards} onRun={runJob} setCards={setCards} handleReset={handleReset} />
     </div>
   );

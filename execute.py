@@ -32,7 +32,7 @@ def create_cell(content: str):
         f.write(content)
     return section_hash
 
-def execute_and_collect(code: str, con: dict, max_bytes: int = 24 * 1024**3):
+def execute_and_collect(code: str, con: dict, max_bytes: int):
     resource.setrlimit(resource.RLIMIT_AS, (max_bytes, max_bytes))
     database.init_db("project")
     f = database.StreamWriter()
@@ -57,10 +57,10 @@ def execute_and_collect(code: str, con: dict, max_bytes: int = 24 * 1024**3):
         ftemp.close()
         return f.hash
 
-def execute_code_and_write_files(code: str, con: dict):
+def execute_code_and_write_files(code: str, con: dict, max_bytes: int):
     previous_code_hash = con.get("_previous_code_hash")
     code_hash = create_cell(content=code)
-    output_hash = execute_and_collect(code, con=con)
+    output_hash = execute_and_collect(code, con=con, max_bytes=max_bytes)
     con["_previous_code_hash"] = code_hash
     database.init_db("project")
     database.insert_execution(previous=previous_code_hash, code=code_hash, output=output_hash)
