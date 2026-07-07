@@ -57,11 +57,11 @@ def list_executions():
     database.init_db("project.db")
     
     executions = database.fetch_executions()
-    executions_with_type = {(execution["code"], execution["output"], execution["type"]) for execution in executions}
+    executions_with_type = {(execution["code"], execution["output"], execution["type"]): i for i, execution in enumerate(executions)}
     
     filtered_executions = [
-        execution for execution in executions 
-        if (execution["code"], execution["output"], "hide") not in executions_with_type
+        execution for i, execution in enumerate(executions)
+        if executions_with_type.get((execution["code"], execution["output"], "hide"), -1) < i
     ]
     
     sections = {section["section"]: section["data"] for section in database.fetch_rows(*[None]*3)}
