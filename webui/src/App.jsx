@@ -58,7 +58,7 @@ const Card = ({ card, isSelected, onSelect, onChange, onRun }) => {
     style={{ border: isSelected ? '1px solid #f00' : '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
     onClick={() => onSelect(card.id)}
   >
-    <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: {content: card.content}})} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.changes && card.content != card.changes)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
+    <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: card})} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.changes && card.content != card.changes)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
     {card.changes && card.content != card.changes && diffVisible && <ReactDiffViewer 
       oldValue={card.content} 
       newValue={card.changes} 
@@ -111,7 +111,7 @@ export function CardList({ cards, onRun, setCards, handleReset }) {
     setCards(remainingItems);
   };
 
-  const handleAdd = () => setCards([...cards, { id: Date.now(), content: '', source: 'db' }]);
+  const handleAdd = () => setCards([...cards, { id: Date.now(), content: '', source: 'ui' }]);
 
   const handleDelete = async (id) => {
     // Find the index of the card to delete
@@ -203,6 +203,7 @@ export default function App() {
       body: JSON.stringify(query)
     });
     var combinedResults = await response.json();
+    combinedResults = combinedResults.map((result) => ({...result, source: 'db'}));
     if (uiState.length === combinedResults.length) {
       combinedResults = combinedResults.map((result, index) => {
         const incoming = uiState[index];
@@ -227,7 +228,7 @@ export default function App() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          ...data,
+          content: data.content,
           memoryLimit: Number(memoryLimit)
         })
       });
