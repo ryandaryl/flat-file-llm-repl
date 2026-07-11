@@ -147,9 +147,9 @@ export function CardList({ cards, onRun, setCards, handleReset }) {
   return (
     <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
       <LayoutGroup>
-        {cards.map((card) => (
+        {cards.map((card, index) => (
           <Card
-            key={card.id}
+            key={card.id + index.toString()}
             card={card}
             isSelected={selectedIds.includes(card.id)}
             onSelect={(id) => {setSelectedIds((prevIds) => prevIds.includes(id) ? prevIds.filter((itemIds) => itemIds !== id) : [...prevIds, id])}}
