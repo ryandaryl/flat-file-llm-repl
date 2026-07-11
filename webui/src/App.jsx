@@ -221,7 +221,7 @@ export default function App() {
     setStatus({[id]: "sent"});
     try {
       // 1. Trigger the process. This is a blocking request.
-      const response = await fetch(`/api/task/run/`, {
+      await fetch(`/api/task/run/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
