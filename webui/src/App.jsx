@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, LayoutGroup } from 'framer-motion';
+import ReactDiffViewer from 'react-diff-viewer-continued';
 import CodeEditor from '@uiw/react-textarea-code-editor';
 import md5 from 'blueimp-md5';
 import HTMLViewer from './HTMLViewer';
 
-const MinimalEditor = ({ code, onChange, onCtrlEnter }) => {
+const MinimalEditor = ({ code, onChange, onCtrlEnter, onButtonClick, buttonVisible, buttonText }) => {
   const handleKeyDown = (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault();
@@ -13,7 +14,7 @@ const MinimalEditor = ({ code, onChange, onCtrlEnter }) => {
   };
 
   return (
-    <div style={{ border: '1px solid #e1e4e8', borderRadius: '6px', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', border: '1px solid #e1e4e8', borderRadius: '6px', overflow: 'hidden' }}>
       <CodeEditor
         value={code}
         language="python"
@@ -29,18 +30,42 @@ const MinimalEditor = ({ code, onChange, onCtrlEnter }) => {
           fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace',
         }}
       />
+      {buttonVisible && <button
+        onClick={(e) => {e.stopPropagation(); onButtonClick()}}
+        style={{
+          position: 'absolute',
+          bottom: '10px',
+          right: '10px',
+          padding: '4px 8px',
+          cursor: 'pointer',
+          backgroundColor: '#fff',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          fontSize: '11px'
+        }}
+      >
+        {buttonText}
+      </button>}
     </div>
   );
 };
 
 // Single Card Component
 const Card = ({ card, isSelected, onSelect, onChange, onRun }) => {
+  const [diffVisible, setDiffVisible] = useState(false)
   return (
   <div
     style={{ border: isSelected ? '1px solid #f00' : '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
     onClick={() => onSelect(card.id)}
   >
-    <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: {content: card.content}})}/>
+    <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: {content: card.content}})} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.changes && card.content != card.changes)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
+    {card.changes && card.content != card.changes && diffVisible && <ReactDiffViewer 
+      oldValue={card.content} 
+      newValue={card.changes} 
+      splitView={true}
+      codeFoldMessageRenderer={() => <span style={{ display: 'none' }} />}
+      hideSummary={true}
+    />}
     {card.output && <HTMLViewer rawHtml={card.output} />}
   </div>
 )};
@@ -86,7 +111,7 @@ export function CardList({ cards, onRun, setCards, handleReset }) {
     setCards(remainingItems);
   };
 
-  const handleAdd = () => setCards([...cards, { id: Date.now(), content: '' }]);
+  const handleAdd = () => setCards([...cards, { id: Date.now(), content: '', source: 'db' }]);
 
   const handleDelete = async (id) => {
     // Find the index of the card to delete
@@ -143,12 +168,29 @@ export function CardList({ cards, onRun, setCards, handleReset }) {
 }
 
 export default function App() {
-  const [cards, setCards] = useState([{ id: 1, content: ''}]);
+  const [cards, setCards] = useState([{ id: 1, content: '', source: 'ui'}]);
   const [status, setStatus] = useState({all: 'never_ran'});
   const [memoryLimit, setMemoryLimit] = useState(24);
   const intervalRef = useRef(null);
 
-  const handleReset = async () => {
+  useEffect(() => {
+    handleReset(); 
+  }, []);
+
+  useEffect(() => {
+    const handleUnload = () => {
+      navigator.sendBeacon('/api/uistate/new/', new Blob([JSON.stringify(cards.map(({ content }) => content))], { type: 'application/json' }));
+    }
+    window.addEventListener('beforeunload', handleUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [cards]);
+
+  const handleReset = async ({addUiState = []} = {}) => {
+    const response1 = await fetch(`/api/uistate/${0}`);
+    var uiState = await response1.json();
+    uiState = uiState.concat(addUiState);
     const query = {
         "content": {"default": true},
         "output": {"default": {"start": null, "end": null}},
@@ -160,7 +202,16 @@ export default function App() {
       },
       body: JSON.stringify(query)
     });
-    const combinedResults = await response.json();
+    var combinedResults = await response.json();
+    if (uiState.length === combinedResults.length) {
+      combinedResults = combinedResults.map((result, index) => {
+        const incoming = uiState[index];
+        return {
+          ...result,
+          changes: result.content === incoming ? "" : incoming
+        };
+      });
+    }
     setCards(combinedResults);
   };
 
@@ -193,7 +244,14 @@ export default function App() {
 
           if ((responseData.status === "success") || (responseData.status.includes("error"))) {
             clearInterval(intervalRef.current);
-            handleReset();
+            fetch('/api/uistate/new/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(cards.map(({ content }) => content)),
+            });
+            handleReset({addUiState: data.source === 'db' ? [data.content] : []});
           }
 
         } catch (err) {

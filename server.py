@@ -77,5 +77,17 @@ def list_executions():
     
     return jsonify(results)
 
+@app.route("/api/uistate/new/", methods=["POST"])
+def save_ui_state():
+    with open("uistate.json", "w") as f:
+        f.write(request.get_data(as_text=True))
+    return jsonify({"status": "success"})
+
+@app.route("/api/uistate/<ui_state_index>", methods=["GET"])
+def load_ui_state(ui_state_index):
+    with open("uistate.json", "r") as f:
+        return f.read(), 200, {"Content-Type": "application/json"}
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, threaded=False, processes=1, debug=False)
