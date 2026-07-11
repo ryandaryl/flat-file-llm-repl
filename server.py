@@ -7,36 +7,22 @@ from execute import execute_code_and_write_files
 
 app = Flask(__name__)
 
-# A simple in-memory database to store job progress
-JOBS = {}
 context = {}
 
-@app.route("/api/task/start/<job_id>", methods=["POST"])
-def start_task(job_id):
+@app.route("/api/task/run/", methods=["POST"])
+def start_task():
     """
     Starts the task in a strict, single-threaded manner. 
     The HTTP response waits until the task finishes processing.
     """
     data = request.json
-    JOBS[job_id] = "waiting"
-    
     # Strictly synchronous execution on the main thread without background tasks
-    JOBS[job_id] = "running"
     try:
         execute_code_and_write_files(code=data["content"], con=context, max_bytes=data["memoryLimit"] * 1024**3)
     except Exception as e:
-        JOBS[job_id] = "run_error"
         print(traceback.format_exc())
-        return jsonify({"status": "run_error", "job_id": job_id, "error": str(e)}), 500
-    
-    JOBS[job_id] = "success"
-    return jsonify({"status": "success", "job_id": job_id})
-
-@app.route("/api/task/status/<job_id>", methods=["GET"])
-def get_status(job_id):
-    """Endpoint for the frontend to check the task status."""
-    status = JOBS.get(job_id, "Not Found")
-    return jsonify({"job_id": job_id, "status": status})
+        return jsonify({"status": "run_error", "error": str(e)}), 500
+    return jsonify({"status": "success"})
 
 @app.route("/api/execution/hide/", methods=["POST"])
 def hide_execution():

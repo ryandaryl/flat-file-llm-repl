@@ -218,13 +218,10 @@ export default function App() {
   const runJob = async ({id, data}) => {
     // Clear any existing intervals if clicked repeatedly
     if (intervalRef.current) clearInterval(intervalRef.current);
-
-    const jobId = "job_" + Math.random().toString(36).substring(7);
-    setStatus({[id]: "starting"});
-
+    setStatus({[id]: "sent"});
     try {
-      // 1. Trigger the background process
-      await fetch(`/api/task/start/${jobId}`, {
+      // 1. Trigger the process. This is a blocking request.
+      const response = await fetch(`/api/task/run/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -234,33 +231,17 @@ export default function App() {
           memoryLimit: Number(memoryLimit)
         })
       });
-
-      // 2. Poll the status endpoint every 50 milliseconds until it finishes
-      intervalRef.current = setInterval(async () => {
-        try {
-          const response = await fetch(`/api/task/status/${jobId}`);
-          const responseData = await response.json();
-          setStatus({[id]: responseData.status});
-
-          if ((responseData.status === "success") || (responseData.status.includes("error"))) {
-            clearInterval(intervalRef.current);
-            fetch('/api/uistate/new/', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(cards.map(({ content }) => content)),
-            });
-            handleReset({addUiState: data.source === 'db' ? [data.content] : []});
-          }
-
-        } catch (err) {
-          setStatus({[id]: "check_error"});
-          clearInterval(intervalRef.current);
-        }
-      }, 50);
+      setStatus({[id]: "success"});
+      fetch('/api/uistate/new/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(cards.map(({ content }) => content)),
+      });
+      handleReset({addUiState: data.source === 'db' ? [data.content] : []});
     } catch (err) {
-      setStatus({[id]: "start_error"});
+      setStatus({[id]: "run_error"});
     }
   };
 
@@ -268,12 +249,9 @@ export default function App() {
     <div style={{ fontFamily: 'sans-serif', textAlign: 'center', marginTop: '50px' }}>
       <h3 style={{ marginTop: '20px', color: '#333' }}>{{
         never_ran: "Press Ctrl-Enter to start",
-        starting: "Starting...",
-        waiting: "Waiting...",
-        running: "Status: Running",
+        sent: "Waiting for the task to complete...",
         success: "Status: Task Completed Successfully!",
         check_error: "Error checking status",
-        start_error: "Error starting job",
         run_error: "Error running job",
       }[Object.values(status)[0]]}</h3>
       <div style={{ marginBottom: '20px' }}>
