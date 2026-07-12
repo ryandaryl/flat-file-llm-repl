@@ -51,14 +51,14 @@ const MinimalEditor = ({ code, onChange, onCtrlEnter, onButtonClick, buttonVisib
 };
 
 // Single Card Component
-const Card = ({ card, isSelected, onSelect, onChange, onRun }) => {
+const Card = ({ card, isSelected, onSelect, onChange, onRun, uiKey }) => {
   const [diffVisible, setDiffVisible] = useState(false)
   return (
   <div
     style={{ border: isSelected ? '1px solid #f00' : '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
     onClick={() => onSelect(card.id)}
   >
-    <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: card})} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.changes && card.content != card.changes)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
+    <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: card, uiKey: uiKey})} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.changes && card.content != card.changes)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
     {card.changes && card.content != card.changes && diffVisible && <ReactDiffViewer 
       oldValue={card.content} 
       newValue={card.changes} 
@@ -149,12 +149,13 @@ export function CardList({ cards, onRun, setCards, handleReset }) {
       <LayoutGroup>
         {cards.map((card, index) => (
           <Card
-            key={card.id + index.toString()}
+            key={index}
             card={card}
             isSelected={selectedIds.includes(card.id)}
             onSelect={(id) => {setSelectedIds((prevIds) => prevIds.includes(id) ? prevIds.filter((itemIds) => itemIds !== id) : [...prevIds, id])}}
             onChange={(content) => setCardContent(card.id, content)}
             onRun={onRun}
+            uiKey={index}
           />
         ))}
       </LayoutGroup>
@@ -172,6 +173,7 @@ export default function App() {
   const [status, setStatus] = useState({all: 'never_ran'});
   const [memoryLimit, setMemoryLimit] = useState(24);
   const intervalRef = useRef(null);
+  const [cellIndices, setCellIndices] = useState(null);
 
   useEffect(() => {
     handleReset(); 
@@ -191,6 +193,7 @@ export default function App() {
     const response1 = await fetch(`/api/uistate/${0}`);
     var uiState = await response1.json();
     uiState = uiState.concat(addUiState);
+
     const query = {
         "content": {"default": true},
         "output": {"default": {"start": null, "end": null}},
@@ -204,6 +207,15 @@ export default function App() {
     });
     var combinedResults = await response.json();
     combinedResults = combinedResults.map((result) => ({...result, source: 'db'}));
+    const nextCellIndices = cellIndices || Array.from({ length: combinedResults.length }, (_, i) => [i]);
+    setCellIndices(nextCellIndices);
+
+    console.log(nextCellIndices);
+
+    combinedResults = nextCellIndices.map(subArray => {
+        const lastIndex = subArray[subArray.length - 1];
+        return combinedResults[lastIndex];
+    });
     if (uiState.length === combinedResults.length) {
       combinedResults = combinedResults.map((result, index) => {
         const incoming = uiState[index];
@@ -216,7 +228,7 @@ export default function App() {
     setCards(combinedResults);
   };
 
-  const runJob = async ({id, data}) => {
+  const runJob = async ({id, data, uiKey}) => {
     // Clear any existing intervals if clicked repeatedly
     if (intervalRef.current) clearInterval(intervalRef.current);
     setStatus({[id]: "sent"});
@@ -240,9 +252,13 @@ export default function App() {
         },
         body: JSON.stringify(cards.map(({ content }) => content)),
       });
+      if (data.source === 'db') {
+        cellIndices[uiKey].push(Math.max(...cellIndices.flat()) + 1)
+      }
       handleReset({addUiState: data.source === 'db' ? [data.content] : []});
     } catch (err) {
       setStatus({[id]: "run_error"});
+      throw err;
     }
   };
 
@@ -252,7 +268,6 @@ export default function App() {
         never_ran: "Press Ctrl-Enter to start",
         sent: "Waiting for the task to complete...",
         success: "Status: Task Completed Successfully!",
-        check_error: "Error checking status",
         run_error: "Error running job",
       }[Object.values(status)[0]]}</h3>
       <div style={{ marginBottom: '20px' }}>
