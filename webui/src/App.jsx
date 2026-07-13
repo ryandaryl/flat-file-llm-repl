@@ -5,22 +5,25 @@ import CodeEditor from '@uiw/react-textarea-code-editor';
 import md5 from 'blueimp-md5';
 import HTMLViewer from './HTMLViewer';
 
-const MinimalEditor = ({ code, onChange, onCtrlEnter, onButtonClick, buttonVisible, buttonText }) => {
-  const handleKeyDown = (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-      event.preventDefault();
-      onCtrlEnter();
-    }
-  };
+const MinimalEditor = ({ code, onChange, onKeyDown, onButtonClick, buttonVisible, buttonText }) => {
+  const editorRef = useRef(null);
+  useEffect(() => {
+    const textarea = editorRef.current;
+    if (!textarea) return;
+    textarea.addEventListener('keydown', onKeyDown);
+    return () => {
+      textarea.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onKeyDown]);
 
   return (
     <div style={{ position: 'relative', border: '1px solid #e1e4e8', borderRadius: '6px', overflow: 'hidden' }}>
       <CodeEditor
+        ref={editorRef}
         value={code}
         language="python"
         placeholder="Please enter code."
-        onChange={(ev) => onChange(ev.target.value)}
-        onKeyDown={handleKeyDown}
+        onChange={(ev) => {onChange(ev.target.value)}}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         padding={15}
@@ -51,14 +54,14 @@ const MinimalEditor = ({ code, onChange, onCtrlEnter, onButtonClick, buttonVisib
 };
 
 // Single Card Component
-const Card = ({ card, isSelected, onSelect, onChange, onRun, uiKey }) => {
+const Card = ({ card, isSelected, onSelect, onChange, onKeyDown }) => {
   const [diffVisible, setDiffVisible] = useState(false)
   return (
   <div
     style={{ border: isSelected ? '1px solid #f00' : '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
     onClick={() => onSelect(card.id)}
   >
-    <MinimalEditor code={card.content} onChange={onChange} onCtrlEnter={() => onRun({id: card.id, data: card, uiKey: uiKey})} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.changes && card.content != card.changes)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
+    <MinimalEditor code={card.content} onChange={onChange} onKeyDown={onKeyDown} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.changes && card.content != card.changes)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
     {card.changes && card.content != card.changes && diffVisible && <ReactDiffViewer 
       oldValue={card.content} 
       newValue={card.changes} 
@@ -143,6 +146,13 @@ export function CardList({ cards, onRun, setCards, handleReset }) {
     setCards(cards.filter(c => c.id !== id));
   };
 
+  const handleKeyDown = ({id, uiKey, source, event}) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      onRun({id, data: {content: event.target.value, source}, uiKey});
+    }
+  };
 
   return (
     <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
@@ -153,7 +163,8 @@ export function CardList({ cards, onRun, setCards, handleReset }) {
             card={card}
             isSelected={selectedIds.includes(card.id)}
             onSelect={(id) => {setSelectedIds((prevIds) => prevIds.includes(id) ? prevIds.filter((itemIds) => itemIds !== id) : [...prevIds, id])}}
-            onChange={(content) => setCardContent(card.id, content)}
+            onChange={(content) => {setCardContent(card.id, content)}}
+            onKeyDown={(event) => {handleKeyDown({id: card.id, uiKey: index, source: card.source, event})}}
             onRun={onRun}
             uiKey={index}
           />
@@ -189,7 +200,7 @@ export default function App() {
     };
   }, [cards]);
 
-  const handleReset = async ({addUiState = []} = {}) => {
+  const handleReset = async ({addUiState = [], nextCellIndices = null} = {}) => {
     const response1 = await fetch(`/api/uistate/${0}`);
     var uiState = await response1.json();
     uiState = uiState.concat(addUiState);
@@ -207,7 +218,7 @@ export default function App() {
     });
     var combinedResults = await response.json();
     combinedResults = combinedResults.map((result) => ({...result, source: 'db'}));
-    const nextCellIndices = cellIndices || Array.from({ length: combinedResults.length }, (_, i) => [i]);
+    nextCellIndices = nextCellIndices || Array.from({ length: combinedResults.length }, (_, i) => [i]);
     setCellIndices(nextCellIndices);
     combinedResults = nextCellIndices.map(subArray => {
         const lastIndex = subArray[subArray.length - 1];
@@ -249,13 +260,14 @@ export default function App() {
         },
         body: JSON.stringify(cards.map(({ content }) => content)),
       });
+      const nextCellIndices = structuredClone(cellIndices);
       const newExecutionNumber = Math.max(...cellIndices.flat(), -1) + 1;
       if (data.source === 'db') {
-        cellIndices[uiKey].push(newExecutionNumber);
+        nextCellIndices[uiKey].push(newExecutionNumber);
       } else {
-        cellIndices.push([newExecutionNumber]);
+        nextCellIndices.push([newExecutionNumber]);
       }
-      handleReset({addUiState: data.source === 'db' ? [data.content] : []});
+      handleReset({addUiState: data.source === 'db' ? [data.content] : [], nextCellIndices});
     } catch (err) {
       setStatus({[id]: "run_error"});
       throw err;
