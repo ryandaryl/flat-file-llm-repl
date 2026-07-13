@@ -209,9 +209,6 @@ export default function App() {
     combinedResults = combinedResults.map((result) => ({...result, source: 'db'}));
     const nextCellIndices = cellIndices || Array.from({ length: combinedResults.length }, (_, i) => [i]);
     setCellIndices(nextCellIndices);
-
-    console.log(nextCellIndices);
-
     combinedResults = nextCellIndices.map(subArray => {
         const lastIndex = subArray[subArray.length - 1];
         return combinedResults[lastIndex];
@@ -252,8 +249,11 @@ export default function App() {
         },
         body: JSON.stringify(cards.map(({ content }) => content)),
       });
+      const newExecutionNumber = Math.max(...cellIndices.flat(), -1) + 1;
       if (data.source === 'db') {
-        cellIndices[uiKey].push(Math.max(...cellIndices.flat()) + 1)
+        cellIndices[uiKey].push(newExecutionNumber);
+      } else {
+        cellIndices.push([newExecutionNumber]);
       }
       handleReset({addUiState: data.source === 'db' ? [data.content] : []});
     } catch (err) {
