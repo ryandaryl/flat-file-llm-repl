@@ -1,3 +1,4 @@
+import json
 import os
 import traceback
 from flask import Flask, jsonify, request
@@ -32,7 +33,7 @@ def hide_execution():
     return jsonify({"status": "success"})
 
 @app.route("/api/execution/list/", methods=["POST"])
-def list_executions():
+def list_executions(as_response=True):
     """
     {
         "content": {"default": True}, Whether to read cell content
@@ -61,12 +62,15 @@ def list_executions():
         "type": sections.get(execution["type"]),
     } for execution in filtered_executions]
     
-    return jsonify(results)
+    return jsonify(results) if as_response else results
 
 @app.route("/api/uistate/new/", methods=["POST"])
 def save_ui_state():
     with open("uistate.json", "w") as f:
-        f.write(request.get_data(as_text=True))
+        json.dump({
+            "base": [execution["content"] for execution in list_executions(as_response=False)],
+            "incoming": request.json,
+        }, f)
     return jsonify({"status": "success"})
 
 @app.route("/api/uistate/<ui_state_index>", methods=["GET"])

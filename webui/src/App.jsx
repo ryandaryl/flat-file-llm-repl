@@ -61,10 +61,10 @@ const Card = ({ card, isSelected, onSelect, onChange, onKeyDown }) => {
     style={{ border: isSelected ? '1px solid #f00' : '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
     onClick={() => onSelect(card.id)}
   >
-    <MinimalEditor code={card.content} onChange={onChange} onKeyDown={onKeyDown} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.changes && card.content != card.changes)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
-    {card.changes && card.content != card.changes && diffVisible && <ReactDiffViewer 
-      oldValue={card.content} 
-      newValue={card.changes} 
+    <MinimalEditor code={card.content} onChange={onChange} onKeyDown={onKeyDown} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.incoming && card.content != card.incoming)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
+    {card.incoming && card.content != card.incoming && diffVisible && <ReactDiffViewer
+      oldValue={card.base}
+      newValue={card.incoming}
       splitView={true}
       codeFoldMessageRenderer={() => <span style={{ display: 'none' }} />}
       hideSummary={true}
@@ -183,7 +183,6 @@ export default function App() {
   const [cards, setCards] = useState([{ id: 1, content: '', source: 'ui'}]);
   const [status, setStatus] = useState({all: 'never_ran'});
   const [memoryLimit, setMemoryLimit] = useState(24);
-  const intervalRef = useRef(null);
   const [cellIndices, setCellIndices] = useState(null);
 
   useEffect(() => {
@@ -202,7 +201,8 @@ export default function App() {
 
   const handleReset = async ({addUiState = [], nextCellIndices = null} = {}) => {
     const response1 = await fetch(`/api/uistate/${0}`);
-    var uiState = await response1.json();
+    var response1Json= await response1.json();
+    var uiState = response1Json["incoming"];
     uiState = uiState.concat(addUiState);
 
     const query = {
@@ -226,10 +226,12 @@ export default function App() {
     });
     if (uiState.length === combinedResults.length) {
       combinedResults = combinedResults.map((result, index) => {
+        const base = response1Json["base"][index];
         const incoming = uiState[index];
         return {
           ...result,
-          changes: result.content === incoming ? "" : incoming
+          base: base === incoming ? null : base,
+          incoming: base === incoming ? null : incoming
         };
       });
     }
@@ -237,8 +239,6 @@ export default function App() {
   };
 
   const runJob = async ({id, data, uiKey}) => {
-    // Clear any existing intervals if clicked repeatedly
-    if (intervalRef.current) clearInterval(intervalRef.current);
     setStatus({[id]: "sent"});
     try {
       // 1. Trigger the process. This is a blocking request.
