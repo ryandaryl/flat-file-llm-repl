@@ -64,18 +64,18 @@ def list_executions(as_response=True):
     
     return jsonify(results) if as_response else results
 
-@app.route("/api/uistate/new/", methods=["POST"])
-def save_ui_state():
-    with open("uistate.json", "w") as f:
+@app.route("/api/snapshot/new/", methods=["POST"])
+def save_snapshot():
+    with open("snapshot.json", "w") as f:
         json.dump({
             "base": [execution["content"] for execution in list_executions(as_response=False)],
             "incoming": request.json,
         }, f)
     return jsonify({"status": "success"})
 
-@app.route("/api/uistate/<ui_state_index>", methods=["GET"])
-def load_ui_state(ui_state_index):
-    with open("uistate.json", "r") as f:
+@app.route("/api/snapshot/<snapshot_index>", methods=["GET"])
+def load_snapshot(snapshot_index):
+    with open("snapshot.json", "r") as f:
         return f.read(), 200, {"Content-Type": "application/json"}
 
 

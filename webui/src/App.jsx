@@ -58,7 +58,7 @@ const Card = ({ card, isSelected, onSelect, onChange, onKeyDown }) => {
   const [diffVisible, setDiffVisible] = useState(false)
   return (
   <div
-    style={{ border: isSelected ? '1px solid #f00' : '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff' }}
+    style={{ border: isSelected ? '1px solid #f00' : '1px solid #ccc', padding: '10px', margin: '10px 0', borderRadius: '4px', background: '#fff', textAlign: "left" }}
     onClick={() => onSelect(card.id)}
   >
     <MinimalEditor code={card.content} onChange={onChange} onKeyDown={onKeyDown} buttonText={`${diffVisible ? "Hide" : "Show"} Diff`} buttonVisible={Boolean(card.incoming && card.content != card.incoming)} onButtonClick={() => {setDiffVisible((prevDiffVisible) => !prevDiffVisible)}}/>
@@ -191,7 +191,7 @@ export default function App() {
 
   useEffect(() => {
     const handleUnload = () => {
-      navigator.sendBeacon('/api/uistate/new/', new Blob([JSON.stringify(cards.map(({ content }) => content))], { type: 'application/json' }));
+      navigator.sendBeacon('/api/snapshot/new/', new Blob([JSON.stringify(cards.map(({ content }) => content))], { type: 'application/json' }));
     }
     window.addEventListener('beforeunload', handleUnload);
     return () => {
@@ -199,11 +199,11 @@ export default function App() {
     };
   }, [cards]);
 
-  const handleReset = async ({addUiState = [], nextCellIndices = null} = {}) => {
-    const response1 = await fetch(`/api/uistate/${0}`);
-    var response1Json= await response1.json();
-    var uiState = response1Json["incoming"];
-    uiState = uiState.concat(addUiState);
+  const handleReset = async ({addIncoming = [], nextCellIndices = null} = {}) => {
+    const response1 = await fetch(`/api/snapshot/${0}`);
+    var snapshot = await response1.json();
+    var { incoming: incomingList, base: baseList } = snapshot;
+    incomingList = incomingList.concat(addIncoming);
 
     const query = {
         "content": {"default": true},
@@ -216,18 +216,18 @@ export default function App() {
       },
       body: JSON.stringify(query)
     });
-    var combinedResults = await response.json();
-    combinedResults = combinedResults.map((result) => ({...result, source: 'db'}));
-    nextCellIndices = nextCellIndices || Array.from({ length: combinedResults.length }, (_, i) => [i]);
+    var executionsFromDb = await response.json();
+    executionsFromDb = executionsFromDb.map((result) => ({...result, source: 'db'}));
+    nextCellIndices = nextCellIndices || Array.from({ length: executionsFromDb.length }, (_, i) => [i]);
     setCellIndices(nextCellIndices);
-    combinedResults = nextCellIndices.map(subArray => {
+    executionsFromDb = nextCellIndices.map(subArray => {
         const lastIndex = subArray[subArray.length - 1];
-        return combinedResults[lastIndex];
+        return executionsFromDb[lastIndex];
     });
-    if (uiState.length === combinedResults.length) {
-      combinedResults = combinedResults.map((result, index) => {
-        const base = response1Json["base"][index];
-        const incoming = uiState[index];
+    if (incomingList.length === executionsFromDb.length) {
+      executionsFromDb = executionsFromDb.map((result, index) => {
+        const base = baseList[index];
+        const incoming = incomingList[index];
         return {
           ...result,
           base: base === incoming ? null : base,
@@ -235,7 +235,7 @@ export default function App() {
         };
       });
     }
-    setCards(combinedResults);
+    setCards(executionsFromDb);
   };
 
   const runJob = async ({id, data, uiKey}) => {
@@ -253,7 +253,7 @@ export default function App() {
         })
       });
       setStatus({[id]: "success"});
-      fetch('/api/uistate/new/', {
+      fetch('/api/snapshot/new/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -267,7 +267,7 @@ export default function App() {
       } else {
         nextCellIndices.push([newExecutionNumber]);
       }
-      handleReset({addUiState: data.source === 'db' ? [data.content] : [], nextCellIndices});
+      handleReset({addIncoming: data.source === 'db' ? [data.content] : [], nextCellIndices});
     } catch (err) {
       setStatus({[id]: "run_error"});
       throw err;
