@@ -184,6 +184,9 @@ export default function App() {
   const [status, setStatus] = useState({all: 'never_ran'});
   const [memoryLimit, setMemoryLimit] = useState(24);
   const [cellIndices, setCellIndices] = useState(null);
+  const [isJobRunning, setIsJobRunning] = useState(false);
+  const intervalRef = useRef(null);
+  const [lastSnapshot, setLastSnapshot] = useState(null);
 
   useEffect(() => {
     handleReset(); 
@@ -199,9 +202,12 @@ export default function App() {
     };
   }, [cards]);
 
-  const handleReset = async ({addIncoming = [], nextCellIndices = null} = {}) => {
-    const response1 = await fetch(`/api/snapshot/${0}`);
-    var snapshot = await response1.json();
+  const handleReset = async ({addIncoming = [], nextCellIndices = null, snapshot = null} = {}) => {
+    if (!snapshot) {
+      const response1 = await fetch(`/api/snapshot/${0}`);
+      var snapshot = await response1.json();
+    }
+    setLastSnapshot(snapshot);
     var { incoming: incomingList, base: baseList } = snapshot;
     incomingList = incomingList.concat(addIncoming);
 
@@ -238,7 +244,46 @@ export default function App() {
     setCards(executionsFromDb);
   };
 
+  // 1. Polling Effect: Runs automatically when isJobRunning changes
+    useEffect(() => {
+      // Only poll if the long job is NOT running
+      if (!isJobRunning) {
+        intervalRef.current = setInterval(async () => {
+          try {
+            const response = await fetch(`/api/snapshot/${0}`);
+            const newSnapshot = await response.json();
+            var equal = true;
+            if (!newSnapshot || !lastSnapshot) {
+              equal = false;
+            } else {
+              for (const key of ["base", "incoming"]) {
+                const arr1 = newSnapshot[key];
+                const arr2 = lastSnapshot[key];
+                if (arr1.length !== arr2.length) equal = false;
+                if (arr1.some((val, i) => val !== arr2[i])) equal = false;
+              }
+            }
+            if (!equal) {
+              handleReset({snapshot: newSnapshot});
+            }
+          } catch (error) {
+            console.error("Polling error:", error);
+          }
+        }, 1000);
+      }
+
+      // Cleanup: Clears interval immediately when isJobRunning becomes true,
+      // or when the entire component unmounts.
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+    }, [isJobRunning, lastSnapshot]);
+
   const runJob = async ({id, data, uiKey}) => {
+    setIsJobRunning(true);
     setStatus({[id]: "sent"});
     try {
       // 1. Trigger the process. This is a blocking request.
@@ -271,6 +316,8 @@ export default function App() {
     } catch (err) {
       setStatus({[id]: "run_error"});
       throw err;
+    } finally {
+      setIsJobRunning(false);
     }
   };
 
