@@ -2,11 +2,12 @@ import json
 import os
 import traceback
 from flask import Flask, jsonify, request
+from flaskmcp import create_app, tool, register_resource
 
 import database
 from execute import execute_code_and_write_files
 
-app = Flask(__name__)
+app = create_app()
 
 context = {}
 
@@ -65,11 +66,11 @@ def list_executions(as_response=True):
     return jsonify(results) if as_response else results
 
 @app.route("/api/snapshot/new/", methods=["POST"])
-def save_snapshot():
+def save_snapshot(base=None, incoming=None):
     with open("snapshot.json", "w") as f:
         json.dump({
-            "base": [execution["content"] for execution in list_executions(as_response=False)],
-            "incoming": request.json,
+            "base": base or [execution["content"] for execution in list_executions(as_response=False)],
+            "incoming": incoming or request.json,
         }, f)
     return jsonify({"status": "success"})
 
@@ -77,6 +78,15 @@ def save_snapshot():
 def load_snapshot(snapshot_index):
     with open("snapshot.json", "r") as f:
         return f.read(), 200, {"Content-Type": "application/json"}
+
+@tool(name="suggest_cell_code", description="Suggest new code for a cell in the notebook")
+def suggest_cell_code(cell_number: int, old_code: str, new_code: str) -> float:
+    executions = [execution["content"] for execution in list_executions(as_response=False)]
+    modified_executions = executions.copy()
+    executions[cell_number] = old_code
+    modified_executions[cell_number] = new_code
+    save_snapshot(base=executions, incoming=modified_executions)
+    return f"New code suggestion for cell {cell_number} was sent to the user."
 
 
 if __name__ == "__main__":
